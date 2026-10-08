@@ -72,8 +72,8 @@ class QuizReportSummary:
     analysis: str
 
 
-def export_quiz_reports(quiz: GradedQuiz, destination: str) -> Result[QuizReportSummary]:
-    """Write the bundle, one PDF per student and the analysis workbook under ``destination``."""
+def write_quiz_reports(quiz: GradedQuiz, folder: Path) -> Result[QuizReportSummary]:
+    """Write the bundle, one PDF per student and the analysis workbook into ``folder``."""
     if not quiz.students:
         return Err(
             (
@@ -86,7 +86,6 @@ def export_quiz_reports(quiz: GradedQuiz, destination: str) -> Result[QuizReport
             )
         )
     reports, summary = build_reports(quiz.bank, quiz.students)
-    folder = Path(destination) / f"{safe_filename(quiz.folder_name)}_리포트"
     date = (quiz.graded_at or "")[:10]
     try:
         bundle, _ = write_report_pdfs(reports, quiz.exam_name, date, folder)
@@ -99,9 +98,7 @@ def export_quiz_reports(quiz: GradedQuiz, destination: str) -> Result[QuizReport
                     "QUIZ_REPORT_FAILED",
                     "error.quiz_report_failed",
                     None,
-                    context={
-                        "reason": f"리포트를 저장하지 못했습니다. 같은 이름의 PDF가 열려 있는지 확인하세요. ({exc.strerror or exc})"
-                    },
+                    context={"reason": f"리포트를 저장하지 못했습니다. ({exc.strerror or exc})"},
                 ),
             )
         )
@@ -110,4 +107,4 @@ def export_quiz_reports(quiz: GradedQuiz, destination: str) -> Result[QuizReport
     )
 
 
-__all__ = ["QuizReportSummary", "export_quiz_reports", "write_report_pdfs"]
+__all__ = ["QuizReportSummary", "write_quiz_reports", "write_report_pdfs"]

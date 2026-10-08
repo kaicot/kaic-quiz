@@ -12,7 +12,7 @@ from quiz_reporter.quiz.responses import FormResponse
 
 LATE_REASON = "마감 뒤 응답(복습)"
 REPEAT_REASON = "같은 학번의 두 번째 이후 응답"
-_FILENAME_UNSAFE = re.compile(r'[\\/:*?"<>|]+')
+_FILENAME_UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
 
 
 @dataclass(frozen=True, slots=True)

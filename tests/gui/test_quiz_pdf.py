@@ -10,7 +10,7 @@ from quiz_reporter.errors import Err, Ok
 from quiz_reporter.quiz.grading import select, sheet_from_bank, suggest_cutoff
 from quiz_reporter.quiz.responses import read_form_responses
 from quiz_reporter.quiz.students import GradedQuiz, excluded_rows, students_from_selection
-from quiz_reporter.ui.quiz_pdf import export_quiz_reports
+from quiz_reporter.ui.quiz_pdf import write_quiz_reports
 from tests.helpers.quiz_forms import form_csv, full_bank
 
 
@@ -35,11 +35,12 @@ def _quiz(tmp_path: Path) -> GradedQuiz:
 
 
 def test_every_student_gets_a_pdf_and_the_bundle_and_analysis_are_written(qapp, tmp_path):
-    exported = export_quiz_reports(_quiz(tmp_path), str(tmp_path / "out"))
+    exported = write_quiz_reports(_quiz(tmp_path), tmp_path / "리포트")
 
     assert isinstance(exported, Ok), exported
     summary = exported.value
     folder = Path(summary.folder)
+    assert folder == tmp_path / "리포트"
     assert summary.students == 4 and summary.detailed
     assert Path(summary.bundle).stat().st_size > 0
     singles = sorted(path.name for path in (folder / "개별").iterdir())
@@ -60,7 +61,7 @@ def test_a_quiz_without_students_is_refused(qapp, tmp_path):
     quiz = _quiz(tmp_path)
     empty = GradedQuiz(quiz.exam_name, quiz.folder_name, None, quiz.bank, (), ())
 
-    result = export_quiz_reports(empty, str(tmp_path / "out"))
+    result = write_quiz_reports(empty, tmp_path / "리포트")
 
     assert isinstance(result, Err)
     assert result.errors[0].context["reason"] == "리포트를 만들 학생이 없습니다."
