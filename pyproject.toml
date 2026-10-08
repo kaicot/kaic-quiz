@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quiz-reporter"
+version = "1.0.0"
+description = "퀴즈 리포터: 구글 폼 퀴즈 채점 · 학생별 피드백"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "PySide6==6.11.2",
+    "PySide6_Essentials==6.11.2",
+    "PySide6_Addons==6.11.2",
+    "shiboken6==6.11.2",
+    "openpyxl==3.1.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.4.1",
+    "pytest-qt==4.4.0",
+    "ruff==0.11.13",
+    "mypy==1.16.1",
+    "types-openpyxl==3.1.5.20260724",
+]
+build = [
+    "pyinstaller==6.14.1",
+    "pyinstaller-hooks-contrib==2026.6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["quiz_reporter*"]
+namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["packaged: requires a built Windows portable release"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Defaults plus import order (I), likely bugs (B) and modern syntax (UP).
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]

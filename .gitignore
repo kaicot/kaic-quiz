@@ -1,0 +1,92 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments and local package metadata
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+
+# Build, packaging, and executable outputs
+build/
+dist/
+wheelhouse/
+*.whl
+*.exe
+*.msi
+*.msix
+*.appx
+*.spec.bak
+
+# IDE, editor, and operating-system files
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Local agent and automation state
+.gjc/
+.senpi/
+.omo/
+.claude/
+.agents/
+
+# Secrets, credentials, signing material, and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.cer
+*.crt
+*.csr
+*.pub
+*.sig
+credentials*.json
+secrets*.json
+
+# Runtime logs and temporary files
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+~$*
+
+# Student data and generated office documents: never committed.
+# Tests build their own synthetic files in a temporary folder.
+*.pdf
+*.xlsx
+*.xlsm
+*.csv
+*.tsv
+
+# Portable application state (always user/runtime data)
+/Data/
+/update.json
+/config.json
+
+# Local release evidence and handoff material
+artifacts/
+*.local.md
