@@ -38,7 +38,7 @@ def _label(text: str, name: str, parent: QWidget) -> QLabel:
 
 
 class QuizTile(QFrame):
-    """One recent quiz: name, when, how many students, the class average and a report button."""
+    """One recent quiz: name, when, how many students, the class average and its reports."""
 
     def __init__(self, entry: QuizEntry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -62,14 +62,22 @@ class QuizTile(QFrame):
         badge.setProperty("role", "detailed" if info.summary.detailed else "basic")
         row.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addLayout(row)
-        self.report_button = QPushButton("리포트", self)
-        self.report_button.setToolTip("인쇄용 묶음 PDF를 엽니다.")
-        layout.addWidget(self.report_button, 0, Qt.AlignmentFlag.AlignLeft)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(6)
+        self.report_button = QPushButton("통합 리포트", self)
+        self.report_button.setToolTip("모든 학생을 묶은 흑백 인쇄용 PDF를 엽니다.")
+        self.singles_button = QPushButton("학생별 PDF", self)
+        self.singles_button.setToolTip("학생에게 한 명씩 보낼 컬러 PDF가 든 폴더를 엽니다.")
+        buttons.addWidget(self.report_button)
+        buttons.addWidget(self.singles_button)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
 
 
 class HomePage(QWidget):
     new_quiz_requested = Signal()
     report_requested = Signal(str)
+    singles_requested = Signal(str)
     list_requested = Signal()
     import_requested = Signal()
 
@@ -103,8 +111,8 @@ class HomePage(QWidget):
         self.recent_title = _label("최근 퀴즈", "sectionTitle", self)
         heading.addWidget(self.recent_title)
         heading.addStretch(1)
-        self.all_button = QPushButton("채점 이력 전체 보기", self)
-        self.all_button.setObjectName("linkButton")
+        # A plain button like the ones on the cards, not a link.
+        self.all_button = QPushButton("채점 이력 전체 보기  ›", self)
         self.all_button.clicked.connect(self.list_requested)
         heading.addWidget(self.all_button)
         root.addLayout(heading)
@@ -157,6 +165,9 @@ class HomePage(QWidget):
         readable = [entry for entry in entries if entry.info is not None]
         for index, entry in enumerate(readable[:RECENT]):
             tile = QuizTile(entry, self.grid_host)
+            tile.singles_button.clicked.connect(
+                lambda _=False, folder=entry.folder: self.singles_requested.emit(folder)
+            )
             tile.report_button.clicked.connect(
                 lambda _=False, folder=entry.folder: self.report_requested.emit(folder)
             )

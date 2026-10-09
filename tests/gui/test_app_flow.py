@@ -113,6 +113,8 @@ def test_a_new_quiz_lands_on_home_and_in_the_list(qtbot, tmp_path, csv):
 
     tiles[0].report_button.click()
     assert app.opened == [str(folder / "리포트" / "전체(인쇄용).pdf")]
+    tiles[0].singles_button.click()
+    assert app.opened[-1] == str(folder / "리포트" / "개별")
 
     app.window.show_page(QUIZ_LIST)
     listing = app.window.quiz_list_page
@@ -122,6 +124,8 @@ def test_a_new_quiz_lands_on_home_and_in_the_list(qtbot, tmp_path, csv):
     listing.table.selectRow(0)
     listing.folder_button.click()
     assert app.opened[-1] == str(folder)
+    listing.singles_button.click()
+    assert app.opened[-1] == str(folder / "리포트" / "개별")
 
 
 def test_the_top_menu_names_every_page_and_marks_the_open_one(qtbot, tmp_path):

@@ -195,12 +195,6 @@ def stylesheet() -> str:
             border-color: {t.error}; background: {t.error_soft};
         }}
         QPushButton#dangerButton:disabled {{ color: {t.disabled}; }}
-        QPushButton#linkButton {{
-            background: transparent; border: 0; color: {t.link}; padding: 2px 4px;
-            min-height: 0; font-weight: 600; text-decoration: underline;
-        }}
-        QPushButton#linkButton:hover {{ color: {t.primary_hover}; background: transparent; }}
-        QPushButton#linkButton:focus {{ border: 0; background: {t.primary_soft}; }}
 
         /* ---- page headings and cards ---- */
         QLabel#pageTitle, QLabel#quizPageTitle {{ font-size: 22px; font-weight: 700; }}

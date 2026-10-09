@@ -25,6 +25,7 @@ COLUMNS = ("날짜", "퀴즈명", "인원", "평균", "리포트")
 
 class QuizListPage(QWidget):
     report_requested = Signal(str)
+    singles_requested = Signal(str)
     folder_requested = Signal(str)
     rebuild_requested = Signal(str)
     delete_requested = Signal(str)
@@ -73,19 +74,28 @@ class QuizListPage(QWidget):
 
         actions = QHBoxLayout()
         actions.setSpacing(8)
-        self.report_button = QPushButton("리포트 열기", self)
+        self.report_button = QPushButton("통합 리포트 열기", self)
+        self.report_button.setToolTip("모든 학생을 묶은 흑백 인쇄용 PDF를 엽니다.")
+        self.singles_button = QPushButton("학생별 PDF 폴더", self)
+        self.singles_button.setToolTip("학생에게 한 명씩 보낼 컬러 PDF가 든 폴더를 엽니다.")
         self.folder_button = QPushButton("폴더 열기", self)
         self.rebuild_button = QPushButton("문항표 바꿔 다시 만들기", self)
         self.delete_button = QPushButton("삭제", self)
         self.delete_button.setObjectName("dangerButton")
         self.trash_button = QPushButton("휴지통 보기", self)
-        for button in (self.report_button, self.folder_button, self.rebuild_button):
+        for button in (
+            self.report_button,
+            self.singles_button,
+            self.folder_button,
+            self.rebuild_button,
+        ):
             actions.addWidget(button)
         actions.addWidget(self.delete_button)
         actions.addStretch(1)
         actions.addWidget(self.trash_button)
         root.addLayout(actions)
         self.report_button.clicked.connect(lambda: self._emit(self.report_requested))
+        self.singles_button.clicked.connect(lambda: self._emit(self.singles_requested))
         self.folder_button.clicked.connect(lambda: self._emit(self.folder_requested))
         self.rebuild_button.clicked.connect(lambda: self._emit(self.rebuild_requested))
         self.delete_button.clicked.connect(lambda: self._emit(self.delete_requested))
@@ -162,6 +172,7 @@ class QuizListPage(QWidget):
         readable = entry is not None and entry.info is not None
         writing = self._write_enabled and not self._busy
         self.report_button.setEnabled(readable)
+        self.singles_button.setEnabled(readable)
         self.folder_button.setEnabled(entry is not None)
         self.rebuild_button.setEnabled(readable and writing)
         self.delete_button.setEnabled(entry is not None and writing)

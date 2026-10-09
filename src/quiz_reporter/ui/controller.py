@@ -34,6 +34,7 @@ from quiz_reporter.ui.trash_dialog import TrashDialog
 from quiz_reporter.ui.workers import TaskRunner
 
 BUNDLE_NAME = "전체(인쇄용).pdf"
+SINGLES_DIRNAME = "개별"
 
 
 def open_with_system(target: str) -> bool:
@@ -95,9 +96,11 @@ class AppController(QObject):
         home, listing, settings = window.home_page, window.quiz_list_page, window.settings_page
         home.new_quiz_requested.connect(self.new_quiz)
         home.report_requested.connect(self.open_report)
+        home.singles_requested.connect(self.open_singles)
         home.list_requested.connect(lambda: window.show_page(QUIZ_LIST))
         home.import_requested.connect(self.choose_import)
         listing.report_requested.connect(self.open_report)
+        listing.singles_requested.connect(self.open_singles)
         listing.folder_requested.connect(self.open_folder)
         listing.rebuild_requested.connect(self.rebuild)
         listing.delete_requested.connect(self.delete)
@@ -212,12 +215,18 @@ class AppController(QObject):
         box.setWindowTitle("퀴즈 리포터")
         box.setIcon(QMessageBox.Icon.Information)
         box.setText(f"{headline}: {info.name if info else entry.folder}{detail}")
-        report = box.addButton("리포트 열기", QMessageBox.ButtonRole.AcceptRole)
-        folder = box.addButton("폴더 열기", QMessageBox.ButtonRole.ActionRole)
+        box.setInformativeText(
+            "통합 리포트는 흑백 인쇄용, 학생별 PDF는 학생에게 보낼 컬러 파일입니다."
+        )
+        report = box.addButton("통합 리포트 열기", QMessageBox.ButtonRole.AcceptRole)
+        singles = box.addButton("학생별 PDF 폴더", QMessageBox.ButtonRole.ActionRole)
+        folder = box.addButton("퀴즈 폴더", QMessageBox.ButtonRole.ActionRole)
         box.addButton("닫기", QMessageBox.ButtonRole.RejectRole)
         box.exec()
         if box.clickedButton() is report:
             self.open_report(entry.folder)
+        elif box.clickedButton() is singles:
+            self.open_singles(entry.folder)
         elif box.clickedButton() is folder:
             self.open_folder(entry.folder)
 
@@ -237,6 +246,17 @@ class AppController(QObject):
             )
             return
         self._open(str(bundle))
+
+    def open_singles(self, folder: str) -> None:
+        path = self._folder(folder)
+        singles = None if path is None else path / REPORT_DIRNAME / SINGLES_DIRNAME
+        if singles is None or not singles.is_dir():
+            self._warn(
+                "학생별 PDF",
+                "학생별 PDF가 없습니다. 채점 이력에서 '문항표 바꿔 다시 만들기'로 다시 만드세요.",
+            )
+            return
+        self._open(str(singles))
 
     def open_folder(self, folder: str) -> None:
         path = self._folder(folder)
