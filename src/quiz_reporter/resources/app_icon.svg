@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Quiz Reporter: a report sheet with a check, on the app's teal. -->
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#0F766E"/>
+  <path d="M72 44 h84 l40 40 v128 a12 12 0 0 1 -12 12 h-112 a12 12 0 0 1 -12 -12 v-156 a12 12 0 0 1 12 -12 z"
+        fill="#FFFFFF"/>
+  <path d="M156 44 v28 a12 12 0 0 0 12 12 h28 z" fill="#CDEBE5"/>
+  <path d="M88 132 l22 22 l44 -48" fill="none" stroke="#0F766E" stroke-width="16"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="88" y="176" width="80" height="12" rx="6" fill="#9AA5B1"/>
+</svg>

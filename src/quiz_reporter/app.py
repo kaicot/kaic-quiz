@@ -6,11 +6,14 @@ import logging
 import sys
 from collections.abc import Sequence
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 import quiz_reporter
+from quiz_reporter import self_check
 from quiz_reporter.infrastructure.paths import ManagedPaths, resolve_portable_root
 from quiz_reporter.startup import StartupState, prepare
 from quiz_reporter.storage.quiz_store import QuizStore
@@ -20,6 +23,7 @@ from quiz_reporter.ui.quiz_pdf import write_quiz_reports
 from quiz_reporter.ui.theme import apply_theme
 
 LOCK_NAME = ".quiz-reporter.lock"
+ICON_PATH = Path(__file__).resolve().parent / "resources" / "app_icon.svg"
 ALREADY_RUNNING = "퀴즈 리포터가 이 폴더에서 이미 실행 중입니다. 열려 있는 창을 쓰세요."
 
 
@@ -49,10 +53,24 @@ def build(state: StartupState, version: str) -> tuple[MainWindow, AppController]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    application = QApplication(list(argv) if argv is not None else sys.argv)
+    arguments = list(argv) if argv is not None else sys.argv
+    if self_check.FLAG in arguments:
+        # Hidden: used to verify a built program (see self_check). No window, no lock.
+        position = arguments.index(self_check.FLAG)
+        if position + 1 >= len(arguments):
+            return 2
+        application = QApplication(arguments[:1])
+        try:
+            return 0 if self_check.run(Path(arguments[position + 1])) else 1
+        except Exception:  # e.g. the report path can't be written: no dialog, just a code
+            return 3
+        finally:
+            del application
+    application = QApplication(arguments)
     application.setApplicationName(TITLE)
     application.setApplicationVersion(quiz_reporter.__version__)
     apply_theme(application)
+    application.setWindowIcon(QIcon(str(ICON_PATH)))
     paths = ManagedPaths.from_root(resolve_portable_root())
     lock = QLockFile(str(paths.root / LOCK_NAME))
     lock.setStaleLockTime(0)
