@@ -193,3 +193,15 @@ def test_the_stylesheet_has_the_fixed_palette_and_font() -> None:
     assert "Malgun Gothic" in sheet
     for color in ("#1F2933", "#0F766E", "#E6F4F1", "#FFF7E6", "#8A4B00", "#D9E2EC"):
         assert color in sheet
+
+
+def test_the_qt_lgpl_notice_is_shown_while_running(qtbot):
+    from quiz_reporter.ui.help_content import help_html
+    from quiz_reporter.ui.main_window import QT_NOTICE, MainWindow
+
+    window = MainWindow("1.0.0")
+    qtbot.addWidget(window)
+
+    assert "LGPL" in window.credit_label.toolTip()
+    assert window.credit_label.toolTip() == QT_NOTICE
+    assert "THIRD_PARTY_NOTICES.txt" in help_html()

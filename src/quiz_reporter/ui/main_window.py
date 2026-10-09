@@ -27,6 +27,8 @@ HOME, NEW_QUIZ, QUIZ_LIST, SETTINGS = "home", "new_quiz", "quiz_list", "settings
 TITLE = "퀴즈 리포터"
 SUBTITLE = "구글 폼 퀴즈 채점 · 학생별 피드백"
 CREDIT = "프로그램 제작 / 조승현 (kaic21@gmail.com) / v{version}"
+# GNU LGPL-3.0 section 4(c): the running program shows the Qt notice next to its own credit.
+QT_NOTICE = "이 프로그램은 Qt for Python(PySide6)과 Qt를 GNU LGPL 3.0 조건으로 사용합니다. 저작권과 라이선스 전문은 프로그램 폴더의 THIRD_PARTY_NOTICES.txt에 있습니다."
 
 
 def _scroll(widget: QWidget, parent: QWidget) -> QScrollArea:
@@ -108,6 +110,7 @@ class MainWindow(QMainWindow):
         status.addPermanentWidget(self.busy_label)
         status.addPermanentWidget(self.busy_bar)
         self.credit_label = QLabel(CREDIT.format(version=version), status)
+        self.credit_label.setToolTip(QT_NOTICE)
         status.addPermanentWidget(self.credit_label)
         self.set_busy(None)
         self.set_read_only(None)
