@@ -10,6 +10,7 @@ from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from quiz_reporter.palette import TOKENS
 from quiz_reporter.quiz.bank import TRAP_NAMES, QuizBank, bank_workbook_bytes
 from quiz_reporter.quiz.pipeline import Graded
 
@@ -29,7 +30,7 @@ SHEET_NAMES = (
 _BOLD = Font(bold=True)
 _TITLE = Font(bold=True, size=14)
 _NOTE = Font(color="FF6B7280")
-_ORDER_NOTE = Font(color="FF9A4A00", bold=True)
+_ORDER_NOTE = Font(color="FF" + TOKENS.warning.lstrip("#"), bold=True)
 ORDER_NOTE = (
     "보기 번호는 폼 순서가 아니라 응답에 처음 나온 순서입니다."
     " 공개 폼 주소로 문항표 틀을 만들면 폼 순서가 됩니다."

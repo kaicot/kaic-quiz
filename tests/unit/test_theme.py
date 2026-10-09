@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from quiz_reporter.quiz.report import REPORT_TEXT_PAIRS
 from quiz_reporter.ui.theme import TEXT_PAIRS, contrast_ratio
 
 
@@ -14,4 +15,9 @@ def test_contrast_ratio_matches_known_values():
 
 @pytest.mark.parametrize(("label", "foreground", "background"), TEXT_PAIRS)
 def test_every_text_pair_meets_wcag_aa(label, foreground, background):
+    assert contrast_ratio(foreground, background) >= 4.5, label
+
+
+@pytest.mark.parametrize(("label", "foreground", "background"), REPORT_TEXT_PAIRS)
+def test_every_report_text_pair_meets_wcag_aa(label, foreground, background):
     assert contrast_ratio(foreground, background) >= 4.5, label
