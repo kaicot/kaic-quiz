@@ -131,6 +131,7 @@ class AppController(QObject):
         self.window.settings_page.import_button.setEnabled(free)
         if not busy:
             self.window.set_busy(None)
+            self.window.clear_status()
 
     def _warn(self, title: str, text: str) -> None:
         QMessageBox.warning(self.window, title, text)
@@ -143,11 +144,25 @@ class AppController(QObject):
         page.form_fetch_requested.connect(self.fetch_form)
 
     def new_quiz(self) -> None:
-        if self.runner.busy:
-            self.window.show_page(NEW_QUIZ)
-            return
-        self._wire_quiz_page(self.window.replace_quiz_page())
+        """Home's '새 퀴즈 채점': a fresh page, unless the teacher wants to go on with the open one."""
+        if not self.runner.busy and (not self.window.quiz_page.has_input() or self._start_over()):
+            self._fresh_quiz_page()
         self.window.show_page(NEW_QUIZ)
+
+    def _fresh_quiz_page(self) -> None:
+        self._wire_quiz_page(self.window.replace_quiz_page())
+
+    def _start_over(self) -> bool:
+        box = QMessageBox(self.window)
+        box.setWindowTitle("새 퀴즈 채점")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText("채점하던 퀴즈가 있습니다. 이어서 할까요, 새로 시작할까요?")
+        box.setInformativeText("새로 시작하면 지금 고른 응답 파일과 문항표가 화면에서 빠집니다.")
+        resume = box.addButton("이어서 하기", QMessageBox.ButtonRole.RejectRole)
+        box.addButton("새로 시작", QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(resume)
+        box.exec()
+        return box.clickedButton() is not resume
 
     def fetch_form(self, address: str) -> None:
         page = self.window.quiz_page
@@ -158,7 +173,7 @@ class AppController(QObject):
                 page.set_form_page(result)
 
         if not self.network.run(lambda: self._fetch_form(address), done):
-            page.set_status("다른 확인이 끝난 뒤 다시 누르세요.")
+            page.set_status("다른 확인이 끝난 뒤 다시 누르세요.", "warning")
 
     def run_quiz(self, request: QuizRunRequest) -> None:
         page = self.window.quiz_page
@@ -174,17 +189,18 @@ class AppController(QObject):
 
         def done(result: object) -> None:
             if isinstance(result, Err):
-                page.set_status("채점하지 못했습니다.")
                 page.show_problems(problems_text(result.errors))
+                page.set_status("채점하지 못했습니다. 2단계의 고칠 점을 보세요.", "error")
                 return
             assert isinstance(result, Ok)
             entry = result.value
+            self._fresh_quiz_page()  # the next visit to 퀴즈 채점 starts clean
             self.window.show_page(HOME)  # refreshes the lists
             self._finished(entry, "채점을 마쳤습니다")
 
         if self.runner.run(work, done):
             self.window.set_busy("채점하고 리포트를 만드는 중입니다…")
-            page.set_status("채점하고 리포트를 만드는 중입니다…")
+            self.window.show_status("채점하고 리포트를 만드는 중입니다…", lasting=True)
 
     def _finished(self, entry: QuizEntry, headline: str) -> None:
         info = entry.info
@@ -217,7 +233,7 @@ class AppController(QObject):
         if bundle is None or not bundle.is_file():
             self._warn(
                 "리포트 열기",
-                "리포트 파일이 없습니다. 퀴즈 목록에서 '문항표 바꿔 다시 만들기'로 다시 만드세요.",
+                "리포트 파일이 없습니다. 채점 이력에서 '문항표 바꿔 다시 만들기'로 다시 만드세요.",
             )
             return
         self._open(str(bundle))
@@ -236,7 +252,7 @@ class AppController(QObject):
             self._warn("문항표 바꿔 다시 만들기", reason_of(opened))
             return
         quiz = opened.value
-        dialog = BankDialog(quiz.info.name, quiz.responses, quiz.graded.bank, self.window)
+        dialog = BankDialog(quiz.info.name, quiz.responses, self.window)
         if not dialog.exec() or dialog.bank is None:
             return
         bank = dialog.bank

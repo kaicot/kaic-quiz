@@ -17,10 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from quiz_reporter.errors import Err
-from quiz_reporter.infrastructure.atomic_io import atomic_write_bytes
 from quiz_reporter.quiz.bank import (
     QuizBank,
-    bank_workbook_bytes,
     parse_bank,
     problems_text,
     read_bank,
@@ -39,7 +37,6 @@ class BankDialog(QDialog):
         self,
         quiz_name: str,
         responses: FormResponses,
-        current: QuizBank,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -47,7 +44,6 @@ class BankDialog(QDialog):
         self.setModal(True)
         self.resize(640, 420)
         self._responses = responses
-        self._current = current
         self.bank: QuizBank | None = None
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 18, 22, 16)
@@ -57,7 +53,7 @@ class BankDialog(QDialog):
         root.addWidget(heading)
         hint = QLabel(
             "새 문항표로 다시 채점하고 리포트를 새로 만듭니다. 응답과 마감 시각은 처음 그대로입니다."
-            " 문제와 보기는 폼과 글자까지 같아야 합니다. 지금 문항표를 내보내 고친 뒤 불러와도 됩니다.",
+            " 문제와 보기는 폼과 글자까지 같아야 합니다. 지금 문항표는 이 퀴즈 폴더의 문항표.xlsx에 있습니다.",
             self,
         )
         hint.setProperty("role", "hint")
@@ -67,11 +63,9 @@ class BankDialog(QDialog):
         row = QHBoxLayout()
         self.load_button = QPushButton("문항표 파일 불러오기", self)
         self.paste_button = QPushButton("문항표 클립보드에서 붙여넣기", self)
-        self.export_button = QPushButton("지금 문항표 내보내기", self)
         for button in (self.load_button, self.paste_button):
             row.addWidget(button)
         row.addStretch(1)
-        row.addWidget(self.export_button)
         root.addLayout(row)
         self.status_label = QLabel("새 문항표를 불러오거나 붙여 넣으세요.", self)
         self.status_label.setWordWrap(True)
@@ -95,7 +89,6 @@ class BankDialog(QDialog):
 
         self.load_button.clicked.connect(self._load_file)
         self.paste_button.clicked.connect(lambda: self.paste(QApplication.clipboard().text()))
-        self.export_button.clicked.connect(self._export)
         self.cancel_button.clicked.connect(self.reject)
         self.rebuild_button.clicked.connect(self.accept)
 
@@ -150,18 +143,6 @@ class BankDialog(QDialog):
         self.status_label.setText("이 문항표로는 다시 만들 수 없습니다. 아래 내용을 고치세요.")
         set_role(self.status_label, "warning")
         self.rebuild_button.setEnabled(False)
-
-    def _export(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(
-            self, "지금 문항표 내보내기", "문항표.xlsx", "Excel 통합 문서 (*.xlsx)"
-        )
-        if not path:
-            return
-        written = atomic_write_bytes(Path(path), bank_workbook_bytes(self._current))
-        if isinstance(written, Err):
-            self._problem(problems_text(written.errors))
-        else:
-            self.status_label.setText(f"지금 문항표를 저장했습니다: {Path(path).name}")
 
 
 __all__ = ["BankDialog"]

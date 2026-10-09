@@ -24,7 +24,7 @@ from quiz_reporter.storage.quiz_store import QuizEntry, QuizStore
 
 TRASH_COLUMNS = ("퀴즈명", "만든 날짜", "인원", "폴더")
 HINT_TEXT = (
-    "삭제한 퀴즈입니다. 복원하면 퀴즈 목록으로 돌아갑니다. 영구 삭제하면 되돌릴 수 없습니다."
+    "삭제한 퀴즈입니다. 복원하면 채점 이력으로 돌아갑니다. 영구 삭제하면 되돌릴 수 없습니다."
 )
 EMPTY_TEXT = "휴지통이 비어 있습니다."
 UNREADABLE_DATE = "읽을 수 없음"

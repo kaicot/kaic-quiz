@@ -30,7 +30,6 @@ from PySide6.QtWidgets import (
 from quiz_reporter.errors import Err, Ok
 from quiz_reporter.quiz.bank import (
     QuizBank,
-    bank_workbook_bytes,
     parse_bank,
     problems_text,
     read_bank,
@@ -112,6 +111,8 @@ def _set_badge(badge: QLabel, text: str, role: str) -> None:
 class QuizPage(QWidget):
     form_fetch_requested = Signal(str)
     run_requested = Signal(object)
+    # (text, role) for the window's status message next to the menu
+    message = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -125,6 +126,7 @@ class QuizPage(QWidget):
         self._write_enabled = True
         self._busy = False
         self.last_copied = ""
+        self.last_status = ""
         self._check_failed = False
 
         root = QVBoxLayout(self)
@@ -163,7 +165,7 @@ class QuizPage(QWidget):
         name_label = QLabel("퀴즈 이름", panel)
         name_label.setMinimumWidth(70)
         self.name_edit = QLineEdit(panel)
-        self.name_edit.setPlaceholderText("퀴즈 목록에 이 이름으로 남습니다")
+        self.name_edit.setPlaceholderText("채점 이력에 이 이름으로 남습니다")
         name_row.addWidget(name_label)
         name_row.addWidget(self.name_edit, 1)
         inner.addLayout(name_row)
@@ -261,26 +263,16 @@ class QuizPage(QWidget):
         load_row.addWidget(self.bank_file_button)
         load_row.addStretch()
         result_inner.addLayout(load_row)
-        status_row = QHBoxLayout()
         self.bank_label = QLabel("아직 문항표가 없습니다.", result_panel)
         self.bank_label.setObjectName("quizBankLabel")
         self.bank_label.setWordWrap(True)
-        status_row.addWidget(self.bank_label, 1)
-        result_inner.addLayout(status_row)
+        result_inner.addWidget(self.bank_label)
         self.problems_box = QPlainTextEdit(result_panel)
         self.problems_box.setObjectName("quizProblems")
         self.problems_box.setReadOnly(True)
         self.problems_box.setMaximumHeight(110)
         self.problems_box.hide()
         result_inner.addWidget(self.problems_box)
-        self.bank_save_button = QPushButton("문항표 내보내기", result_panel)
-        self.bank_save_button.setToolTip("지금 문항표를 엑셀 파일로 저장합니다(보관·직접 수정용).")
-        self.bank_clear_button = QPushButton("문항표 지우기", result_panel)
-        self.bank_clear_button.setToolTip(
-            "불러온 문항표를 이 화면에서만 뺍니다. 파일은 지우지 않습니다."
-        )
-        status_row.addWidget(self.bank_save_button)
-        status_row.addWidget(self.bank_clear_button)
         layout.addWidget(result_panel)
         root.addWidget(card)
 
@@ -289,7 +281,7 @@ class QuizPage(QWidget):
             self,
             3,
             "채점하고 리포트 만들기",
-            "누르면 퀴즈가 퀴즈 목록에 저장되고, 인쇄용 묶음 PDF · 학생별 PDF · 채점결과 엑셀이"
+            "누르면 퀴즈가 채점 이력에 저장되고, 인쇄용 묶음 PDF · 학생별 PDF · 채점결과 엑셀이"
             " 만들어집니다. 저장할 폴더는 고르지 않아도 됩니다.",
         )
         run_row = QHBoxLayout()
@@ -299,17 +291,11 @@ class QuizPage(QWidget):
         run_row.addWidget(self.run_button)
         run_row.addStretch()
         layout.addLayout(run_row)
-        self.status_label = QLabel("", card)
-        self.status_label.setObjectName("quizStatusLabel")
-        self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
         root.addWidget(card)
         root.addStretch()
         self.form_button.clicked.connect(self._request_form)
         self.bank_file_button.clicked.connect(self._load_bank_file)
         self.bank_paste_button.clicked.connect(self._paste_bank)
-        self.bank_save_button.clicked.connect(self._save_bank)
-        self.bank_clear_button.clicked.connect(self._clear_bank)
         self.copy_complete_button.clicked.connect(self._copy_completion_prompt)
         self.responses_button.clicked.connect(self._pick_responses)
         self.cutoff_check.toggled.connect(lambda _: self._refresh())
@@ -334,8 +320,17 @@ class QuizPage(QWidget):
         self._busy = bool(busy)
         self._refresh()
 
-    def set_status(self, text: str) -> None:
-        self.status_label.setText(text)
+    def has_input(self) -> bool:
+        """Whether leaving this page for a fresh one would throw away the teacher's work."""
+        return (
+            self._responses is not None
+            or self._bank is not None
+            or bool(self.form_edit.text().strip())
+        )
+
+    def set_status(self, text: str, role: str = "info") -> None:
+        self.last_status = text
+        self.message.emit(text, role)
 
     # ----- ① bank -----
     def _copy(self, text: str, what: str) -> None:
@@ -478,31 +473,10 @@ class QuizPage(QWidget):
         self.problems_box.setPlainText(text)
         self.problems_box.show()
         self.set_status(
-            "문항표에 고칠 점이 있습니다. '해설 만들기 프롬프트 복사'로 AI에게 고쳐 달라고 하세요."
+            "문항표에 고칠 점이 있습니다. 2단계 '나'의 목록을 보세요.",
+            "warning",
         )
         self._refresh()
-
-    def _clear_bank(self) -> None:
-        self._bank = None
-        self._bank_problems = ""
-        self.problems_box.hide()
-        self.bank_label.setText("아직 문항표가 없습니다.")
-        self._refresh()
-
-    def _save_bank(self) -> None:
-        if self._bank is None:
-            return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "문항표 저장", "문항표.xlsx", "Excel 통합 문서 (*.xlsx)"
-        )
-        if not path:
-            return
-        try:
-            Path(path).write_bytes(bank_workbook_bytes(self._bank))
-        except OSError:
-            self.set_status("문항표를 저장하지 못했습니다. 파일이 열려 있는지 확인하세요.")
-            return
-        self.set_status(f"문항표를 저장했습니다: {path}")
 
     def _copy_completion_prompt(self) -> None:
         if self._bank is None and not self._bank_problems:
@@ -621,7 +595,7 @@ class QuizPage(QWidget):
 
     def _run(self) -> None:
         if self._responses is None or self._responses_path is None:
-            self.set_status("먼저 ① 응답 파일을 고르세요.")
+            self.set_status("먼저 ① 응답 파일을 고르세요.", "warning")
             return
         prepared = self.answer_sheet()
         if isinstance(prepared, Err):
@@ -660,8 +634,6 @@ class QuizPage(QWidget):
     def _refresh(self) -> None:
         idle = not self._busy
         self.copy_complete_button.setEnabled(self._bank is not None or bool(self._bank_problems))
-        self.bank_save_button.setEnabled(self._bank is not None)
-        self.bank_clear_button.setEnabled(self._bank is not None)
         self.form_button.setEnabled(idle)
         self.cutoff_edit.setEnabled(self.cutoff_check.isChecked())
         selection = self.current_selection()

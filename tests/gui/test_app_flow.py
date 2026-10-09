@@ -124,17 +124,74 @@ def test_a_new_quiz_lands_on_home_and_in_the_list(qtbot, tmp_path, csv):
     assert app.opened[-1] == str(folder)
 
 
-def test_starting_a_new_quiz_gives_an_empty_page(qtbot, tmp_path, csv):
+def test_the_top_menu_names_every_page_and_marks_the_open_one(qtbot, tmp_path):
+    app = App(qtbot, tmp_path / "Quiz-Reporter")
+    buttons = app.window.nav_buttons
+
+    assert [button.text() for button in buttons.values()] == [
+        "홈",
+        "퀴즈 채점",
+        "채점 이력",
+        "설정",
+    ]
+    for key in (NEW_QUIZ, QUIZ_LIST, SETTINGS, HOME):
+        buttons[key].click()
+        assert app.window.current_page() == key
+        assert [name for name, button in buttons.items() if button.isChecked()] == [key]
+
+
+def test_after_grading_the_next_quiz_starts_on_an_empty_page(qtbot, tmp_path, csv):
     app = App(qtbot, tmp_path / "Quiz-Reporter")
     app.grade(csv)
 
-    app.controller.new_quiz()
+    app.window.nav_buttons[NEW_QUIZ].click()
 
     assert app.window.current_page() == NEW_QUIZ
     assert app.window.quiz_page.responses is None
+    assert app.window.quiz_page.bank is None
     assert not app.window.quiz_page.run_button.isEnabled()
-    app.window.back_button.click()
-    assert app.window.current_page() == HOME
+
+
+def test_the_quiz_page_keeps_its_input_across_the_menu(qtbot, tmp_path, csv, monkeypatch):
+    app = App(qtbot, tmp_path / "Quiz-Reporter")
+    app.controller.new_quiz()
+    page = app.window.quiz_page
+    page.load_responses(str(csv))
+
+    app.window.nav_buttons[SETTINGS].click()
+    app.window.nav_buttons[NEW_QUIZ].click()
+    assert app.window.quiz_page is page and page.responses is not None
+
+    # Home's '새 퀴즈 채점' asks first: going on keeps the page, starting over empties it.
+    answers = iter([False, True])
+    monkeypatch.setattr(app.controller, "_start_over", lambda: next(answers))
+    app.window.home_page.new_quiz_button.click()
+    assert app.window.quiz_page is page
+    app.window.home_page.new_quiz_button.click()
+    assert app.window.quiz_page is not page and app.window.quiz_page.responses is None
+    assert app.window.current_page() == NEW_QUIZ
+
+
+def test_quiz_page_messages_show_next_to_the_menu(qtbot, tmp_path, csv):
+    app = App(qtbot, tmp_path / "Quiz-Reporter")
+    app.controller.new_quiz()
+    page = app.window.quiz_page
+    page.load_responses(str(csv))
+    page.paste_bank(bank_text(full_bank()))
+    status = app.window.status_message
+
+    page.copy_complete_button.click()
+
+    assert status.isVisibleTo(app.window)
+    assert "해설 만들기 프롬프트를 복사했습니다" in status.text()
+    assert status.property("role") == "info"
+    app.window.clear_status()
+    assert not status.isVisibleTo(app.window)
+
+    page.paste_bank("표가 아닌 글")
+    assert status.property("role") == "warning"
+    app.window.replace_quiz_page()  # a fresh page drops the old page's message
+    assert not status.isVisibleTo(app.window)
 
 
 def test_rebuild_delete_and_restore_from_the_list(qtbot, tmp_path, csv, monkeypatch):
@@ -143,7 +200,7 @@ def test_rebuild_delete_and_restore_from_the_list(qtbot, tmp_path, csv, monkeypa
     entry = app.store.list_quizzes()[0]
 
     class _Dialog:
-        def __init__(self, name, responses, current, parent):
+        def __init__(self, name, responses, parent):
             self.bank = full_bank()
 
         def exec(self):
@@ -186,6 +243,8 @@ def test_a_failed_grading_stays_on_the_page_with_the_reason(qtbot, tmp_path, csv
 
     assert app.window.current_page() == NEW_QUIZ
     assert "디스크가 가득 찼습니다." in app.window.quiz_page.problems_box.toPlainText()
+    assert "채점하지 못했습니다" in app.window.status_message.text()
+    assert app.window.status_message.property("role") == "error"
     assert app.finished == []
 
 

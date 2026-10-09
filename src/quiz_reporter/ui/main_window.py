@@ -1,8 +1,8 @@
-"""The window frame: top menu, notice banners, the pages, and the status line."""
+"""The window frame: top menu with the status message, notice banners, the pages, and the status line."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -22,12 +22,16 @@ from quiz_reporter.ui.home_page import HomePage
 from quiz_reporter.ui.quiz_list_page import QuizListPage
 from quiz_reporter.ui.quiz_page import QuizPage
 from quiz_reporter.ui.settings_page import SettingsPage
+from quiz_reporter.ui.theme import set_role
 
 HOME, NEW_QUIZ, QUIZ_LIST, SETTINGS = "home", "new_quiz", "quiz_list", "settings"
 TITLE = "퀴즈 리포터"
 SUBTITLE = "구글 폼 퀴즈 채점 · 학생별 피드백"
 CREDIT = "프로그램 제작 / 조승현 (kaic21@gmail.com) / v{version}"
 # GNU LGPL-3.0 section 4(c): the running program shows the Qt notice next to its own credit.
+NAV = ((HOME, "홈"), (NEW_QUIZ, "퀴즈 채점"), (QUIZ_LIST, "채점 이력"), (SETTINGS, "설정"))
+# How long a passing message stays in the top bar.
+STATUS_MS = 12_000
 QT_NOTICE = "이 프로그램은 Qt for Python(PySide6)과 Qt를 GNU LGPL 3.0 조건으로 사용합니다. 저작권과 라이선스 전문은 프로그램 폴더의 THIRD_PARTY_NOTICES.txt에 있습니다."
 
 
@@ -72,25 +76,13 @@ class MainWindow(QMainWindow):
         self.home_page = HomePage()
         self.quiz_list_page = QuizListPage()
         self.settings_page = SettingsPage()
-        self.new_quiz_host = QWidget()
-        host = QVBoxLayout(self.new_quiz_host)
-        host.setContentsMargins(0, 0, 0, 0)
-        host.setSpacing(0)
-        back_row = QHBoxLayout()
-        back_row.setContentsMargins(24, 12, 24, 0)
-        self.back_button = QPushButton("← 홈으로", self.new_quiz_host)
-        self.back_button.setObjectName("linkButton")
-        self.back_button.clicked.connect(lambda: self.show_page(HOME))
-        back_row.addWidget(self.back_button)
-        back_row.addStretch(1)
-        host.addLayout(back_row)
         self.quiz_page = QuizPage()
-        self._quiz_scroll = _scroll(self.quiz_page, self.new_quiz_host)
-        host.addWidget(self._quiz_scroll, 1)
+        self.quiz_page.message.connect(self.show_status)
+        self._quiz_scroll = _scroll(self.quiz_page, self.stack)
         self._pages: dict[str, QWidget] = {}
         for key, page in (
             (HOME, _scroll(self.home_page, self.stack)),
-            (NEW_QUIZ, self.new_quiz_host),
+            (NEW_QUIZ, self._quiz_scroll),
             (QUIZ_LIST, self.quiz_list_page),
             (SETTINGS, _scroll(self.settings_page, self.stack)),
         ):
@@ -142,7 +134,7 @@ class MainWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         self.nav_buttons: dict[str, QPushButton] = {}
-        for key, text in ((HOME, "홈"), (QUIZ_LIST, "퀴즈 목록"), (SETTINGS, "설정")):
+        for key, text in NAV:
             button = QPushButton(text, bar)
             button.setObjectName("navButton")
             button.setCheckable(True)
@@ -152,7 +144,19 @@ class MainWindow(QMainWindow):
             self.nav_group.addButton(button)
             self.nav_buttons[key] = button
             row.addWidget(button)
-        row.addStretch(1)
+        row.addSpacing(18)
+        self.status_message = QLabel(bar)
+        self.status_message.setObjectName("topStatus")
+        self.status_message.setWordWrap(True)
+        # Two lines at most, so the menu bar keeps its height; the whole text is in the tooltip.
+        self.status_message.setMaximumHeight(44)
+        self.status_message.hide()
+        row.addWidget(self.status_message, 1, Qt.AlignmentFlag.AlignVCenter)
+        row.addStretch(0)
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(self.clear_status)
+        row.addSpacing(12)
         self.help_button = QPushButton("?", bar)
         self.help_button.setObjectName("helpButton")
         self.help_button.setToolTip("도움말 (F1)")
@@ -176,9 +180,8 @@ class MainWindow(QMainWindow):
 
     def show_page(self, key: str) -> None:
         self.stack.setCurrentWidget(self._pages[key])
-        highlighted = HOME if key == NEW_QUIZ else key
         for name, button in self.nav_buttons.items():
-            button.setChecked(name == highlighted)
+            button.setChecked(name == key)
         self.page_changed.emit(key)
 
     def current_page(self) -> str:
@@ -189,10 +192,28 @@ class MainWindow(QMainWindow):
         """A fresh, empty quiz page for the next new quiz."""
         old = self._quiz_scroll.takeWidget()
         self.quiz_page = QuizPage()
+        self.quiz_page.message.connect(self.show_status)
         self._quiz_scroll.setWidget(self.quiz_page)
         if old is not None:
             old.deleteLater()
+        self.clear_status()
         return self.quiz_page
+
+    def show_status(self, text: str, role: str = "info", lasting: bool = False) -> None:
+        """A short message next to the menu; it fades after a while unless ``lasting``."""
+        self.status_message.setText(text)
+        self.status_message.setToolTip(text)
+        set_role(self.status_message, role)
+        self.status_message.setVisible(bool(text))
+        if text and not lasting:
+            self._status_timer.start(STATUS_MS)
+        else:
+            self._status_timer.stop()
+
+    def clear_status(self) -> None:
+        self._status_timer.stop()
+        self.status_message.clear()
+        self.status_message.hide()
 
     def set_data_path(self, text: str) -> None:
         self.path_label.setText(f"저장 위치: {text}")

@@ -148,6 +148,14 @@ def stylesheet() -> str:
         QPushButton#helpButton:hover, QPushButton#helpButton:focus {{
             border-color: {t.primary}; color: {t.primary}; background: transparent;
         }}
+        QFrame#topBar QLabel#topStatus {{
+            background: {t.primary_soft}; color: {t.primary}; font-size: 12px; font-weight: 600;
+            border-radius: 6px; padding: 3px 10px;
+        }}
+        QFrame#topBar QLabel#topStatus[role="warning"] {{
+            background: {t.warning_soft}; color: {t.warning};
+        }}
+        QFrame#topBar QLabel#topStatus[role="error"] {{ background: {t.error_soft}; color: {t.error}; }}
         QFrame#noticeBanner {{ background: {t.primary_soft}; border-bottom: 1px solid {t.border}; }}
         QFrame#noticeBanner[kind="warning"] {{ background: {t.warning_soft}; }}
         QFrame#noticeBanner QLabel {{ background: transparent; }}

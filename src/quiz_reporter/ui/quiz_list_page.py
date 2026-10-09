@@ -1,4 +1,4 @@
-"""퀴즈 목록: every saved quiz in a table, with what can be done to the selected one."""
+"""채점 이력: every saved quiz in a table, with what can be done to the selected one."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class QuizListPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(36, 30, 36, 24)
         root.setSpacing(14)
-        title = QLabel("퀴즈 목록", self)
+        title = QLabel("채점 이력", self)
         title.setObjectName("pageTitle")
         root.addWidget(title)
         hint = QLabel("퀴즈를 고르고 아래 버튼을 누르세요. 두 번 누르면 리포트가 열립니다.", self)

@@ -103,7 +103,7 @@ class HomePage(QWidget):
         self.recent_title = _label("최근 퀴즈", "sectionTitle", self)
         heading.addWidget(self.recent_title)
         heading.addStretch(1)
-        self.all_button = QPushButton("퀴즈 목록 전체 보기", self)
+        self.all_button = QPushButton("채점 이력 전체 보기", self)
         self.all_button.setObjectName("linkButton")
         self.all_button.clicked.connect(self.list_requested)
         heading.addWidget(self.all_button)
@@ -164,7 +164,7 @@ class HomePage(QWidget):
             self.tiles.append(tile)
         unreadable = len(entries) - len(readable)
         self.unreadable_label.setText(
-            f"읽을 수 없는 퀴즈 폴더가 {unreadable}개 있습니다. 퀴즈 목록에서 이유를 볼 수 있습니다."
+            f"읽을 수 없는 퀴즈 폴더가 {unreadable}개 있습니다. 채점 이력에서 이유를 볼 수 있습니다."
             if unreadable
             else ""
         )
