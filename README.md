@@ -62,6 +62,8 @@ uv venv --python 3.12 .venv
 uv pip install --python .venv -c constraints/windows-py312.txt -e ".[dev]"
 ```
 
+실행: `.venv\Scripts\python main.py` (저장소 폴더가 포터블 루트가 되어 `Data\`가 그 안에 생깁니다)
+
 확인 절차(모두 통과해야 커밋합니다):
 
 ```powershell
