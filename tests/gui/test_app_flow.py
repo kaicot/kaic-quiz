@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QLabel, QMessageBox
 
 from quiz_reporter.errors import Err, ErrorInfo, Ok
 from quiz_reporter.infrastructure.paths import ManagedPaths
@@ -111,6 +111,8 @@ def test_a_new_quiz_lands_on_home_and_in_the_list(qtbot, tmp_path, csv):
     assert (folder / "리포트" / "전체(인쇄용).pdf").stat().st_size > 0
     assert len(list((folder / "리포트" / "개별").iterdir())) == 4
 
+    meta = [label.text() for label in tiles[0].findChildren(QLabel)]
+    assert "2026-10-06(화) 응시 · 4명" in meta
     tiles[0].report_button.click()
     assert app.opened == [str(folder / "리포트" / "전체(인쇄용).pdf")]
     tiles[0].singles_button.click()
@@ -119,6 +121,8 @@ def test_a_new_quiz_lands_on_home_and_in_the_list(qtbot, tmp_path, csv):
     app.window.show_page(QUIZ_LIST)
     listing = app.window.quiz_list_page
     assert listing.table.rowCount() == 1
+    assert listing.table.item(0, 0).text() == "2026-10-06(화)"
+    assert listing.table.item(0, 0).toolTip().startswith("채점: ")
     assert listing.table.item(0, 1).text() == "생리 퀴즈"
     assert listing.table.item(0, 2).text() == "4명"
     listing.table.selectRow(0)

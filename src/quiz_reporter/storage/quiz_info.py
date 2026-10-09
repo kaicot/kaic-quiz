@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
+from quiz_reporter.quiz.responses import KST
 
 INFO_FORMAT = 1
 INFO_FILENAME = "퀴즈정보.json"
@@ -34,7 +35,10 @@ _KEYS = {
     "cutoff",
     "option_order",
     "summary",
+    "taken_on",
 }
+# Written by every 1.0.0 build; quizzes saved by earlier test builds lack it.
+_OPTIONAL_KEYS = {"taken_on"}
 _SUMMARY_KEYS = {
     "students",
     "flagged",
@@ -74,6 +78,17 @@ class QuizInfo:
     cutoff: datetime | None
     option_order: str
     summary: QuizSummary
+    # The day the quiz was taken (most kept answers); None when no answer has a time.
+    taken_on: date | None = None
+
+    @property
+    def quiz_day(self) -> date:
+        """The day the lists show: the quiz day, else the cutoff's day, else the grading day."""
+        if self.taken_on is not None:
+            return self.taken_on
+        if self.cutoff is not None:
+            return self.cutoff.astimezone(KST).date()
+        return self.created_at.date()
 
     @property
     def numbered(self) -> bool:
@@ -92,6 +107,7 @@ class QuizInfo:
             "responses_file": self.responses_file,
             "cutoff": None if self.cutoff is None else self.cutoff.isoformat(),
             "option_order": self.option_order,
+            "taken_on": None if self.taken_on is None else self.taken_on.isoformat(),
             "summary": {
                 "students": summary.students,
                 "flagged": summary.flagged,
@@ -107,12 +123,13 @@ class QuizInfo:
     @staticmethod
     def from_json(value: Any) -> QuizInfo:
         """Strict reader: unknown or missing keys and wrong types raise ``ValueError``."""
-        if not isinstance(value, dict) or set(value) != _KEYS:
+        if not isinstance(value, dict) or not _KEYS - _OPTIONAL_KEYS <= set(value) <= _KEYS:
             raise ValueError("quiz info keys")
         summary = value["summary"]
         if not isinstance(summary, dict) or set(summary) != _SUMMARY_KEYS:
             raise ValueError("quiz summary keys")
         cutoff = value["cutoff"]
+        taken_on = value.get("taken_on")
         return QuizInfo(
             _integer(value["format"]),
             _text(value["app_version"]),
@@ -133,6 +150,7 @@ class QuizInfo:
                 _number(summary["average"]),
                 _flag(summary["detailed"]),
             ),
+            None if taken_on is None else date.fromisoformat(_text(taken_on)),
         )
 
 

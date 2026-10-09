@@ -17,10 +17,10 @@ from PySide6.QtWidgets import (
 )
 
 from quiz_reporter.storage.quiz_store import QuizEntry
-from quiz_reporter.ui.home_page import when_text
+from quiz_reporter.ui.home_page import graded_text, when_text
 from quiz_reporter.ui.theme import TOKENS
 
-COLUMNS = ("날짜", "퀴즈명", "인원", "평균", "리포트")
+COLUMNS = ("퀴즈 날짜", "퀴즈명", "인원", "평균", "리포트")
 
 
 class QuizListPage(QWidget):
@@ -131,7 +131,8 @@ class QuizListPage(QWidget):
                     item.setForeground(QColor(TOKENS.disabled))
                     item.setToolTip(entry.problem)
                 else:
-                    item.setToolTip(entry.folder)
+                    # The date is the quiz day; hovering it tells when it was graded.
+                    item.setToolTip(graded_text(info) if column == 0 else entry.folder)
                 self.table.setItem(row, column, item)
         self.table.setVisible(bool(entries))
         self.empty_label.setVisible(not entries)

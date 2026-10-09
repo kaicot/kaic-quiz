@@ -107,7 +107,9 @@ def test_a_new_quiz_keeps_its_originals_and_lists_its_summary(setup):
         "average": 1.5,
         "detailed": True,
     }
+    assert info["taken_on"] == "2026-10-06"
     assert writer.calls[0].exam_name == "생리 퀴즈"
+    assert writer.calls[0].taken_on == "2026-10-06"
     assert [entry.folder for entry in store.list_quizzes()] == ["261006_132001_생리 퀴즈"]
     assert not [path for path in (root / "Data").iterdir() if path.name.startswith(".")]
 
@@ -509,3 +511,31 @@ def test_an_unreadable_saved_bank_keeps_hiding_numbers(setup):
 
     assert isinstance(rebuilt, Ok) and rebuilt.value.info is not None
     assert not rebuilt.value.info.numbered
+
+
+def test_the_lists_sort_by_quiz_day_and_read_infos_without_one(setup):
+    store, _, csv, _ = setup
+    responses, cutoff = _cutoff(csv)
+    sheet = sheet_from_bank(responses, full_bank()).value
+    earlier = store.create("먼저 본 퀴즈", csv, cutoff, full_bank(), sheet)
+    later = store.create("나중에 본 퀴즈", csv, cutoff, full_bank(), sheet)
+    assert isinstance(earlier, Ok) and isinstance(later, Ok)
+    # The first one was taken a day later, though graded first.
+    path = earlier.value.path / INFO_FILENAME
+    info = json.loads(path.read_text(encoding="utf-8"))
+    info["taken_on"] = "2026-10-07"
+    path.write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
+    # A quiz saved by an earlier test build has no taken_on: its cutoff's day is used.
+    path = later.value.path / INFO_FILENAME
+    info = json.loads(path.read_text(encoding="utf-8"))
+    del info["taken_on"]
+    path.write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
+
+    listed = store.list_quizzes()
+
+    assert [entry.info.name for entry in listed if entry.info] == ["먼저 본 퀴즈", "나중에 본 퀴즈"]
+    assert [str(entry.info.quiz_day) for entry in listed if entry.info] == [
+        "2026-10-07",
+        "2026-10-06",
+    ]
+    assert listed[1].info is not None and listed[1].info.taken_on is None

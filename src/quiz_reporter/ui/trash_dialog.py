@@ -21,8 +21,9 @@ from PySide6.QtWidgets import (
 
 from quiz_reporter.errors import Err, Result
 from quiz_reporter.storage.quiz_store import QuizEntry, QuizStore
+from quiz_reporter.ui.home_page import when_text
 
-TRASH_COLUMNS = ("퀴즈명", "만든 날짜", "인원", "폴더")
+TRASH_COLUMNS = ("퀴즈명", "퀴즈 날짜", "인원", "폴더")
 HINT_TEXT = (
     "삭제한 퀴즈입니다. 복원하면 채점 이력으로 돌아갑니다. 영구 삭제하면 되돌릴 수 없습니다."
 )
@@ -135,7 +136,7 @@ class TrashDialog(QDialog):
         else:
             values = (
                 info.name,
-                info.created_at.strftime("%Y-%m-%d %H:%M"),
+                when_text(info),
                 str(info.summary.students),
                 entry.folder,
             )

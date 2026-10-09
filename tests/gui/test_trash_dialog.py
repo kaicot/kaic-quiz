@@ -122,7 +122,7 @@ def test_rows_list_the_newest_first_with_name_date_and_students(dialog, store, c
     table = dialog.table
     assert [table.horizontalHeaderItem(c).text() for c in range(4)] == [
         "퀴즈명",
-        "만든 날짜",
+        "퀴즈 날짜",
         "인원",
         "폴더",
     ]
@@ -132,7 +132,7 @@ def test_rows_list_the_newest_first_with_name_date_and_students(dialog, store, c
         "호흡 퀴즈",
         "생리 퀴즈",
     ]
-    assert table.item(0, 1).text() == "2026-10-06 13:20"
+    assert table.item(0, 1).text() == "2026-10-06(화)"
     assert table.item(0, 2).text() == "4"
     assert table.item(0, 3).text().startswith("261006_132003_내분비 퀴즈")
     assert table.editTriggers() == QAbstractItemView.EditTrigger.NoEditTriggers

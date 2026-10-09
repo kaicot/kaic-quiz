@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from quiz_reporter.quiz.responses import KST
 from quiz_reporter.storage.quiz_info import QuizInfo
 from quiz_reporter.storage.quiz_store import QuizEntry
 
@@ -22,8 +23,14 @@ _WEEKDAYS = "월화수목금토일"
 
 
 def when_text(info: QuizInfo) -> str:
-    moment = info.created_at
-    return f"{moment:%Y-%m-%d}({_WEEKDAYS[moment.weekday()]}) {moment:%H:%M}"
+    """The day the quiz was taken, e.g. 2026-10-06(화)."""
+    day = info.quiz_day
+    return f"{day:%Y-%m-%d}({_WEEKDAYS[day.weekday()]})"
+
+
+def graded_text(info: QuizInfo) -> str:
+    moment = info.graded_at.astimezone(KST)
+    return f"채점: {moment:%Y-%m-%d %H:%M}"
 
 
 def score_text(info: QuizInfo) -> str:
@@ -54,7 +61,9 @@ class QuizTile(QFrame):
         title.setWordWrap(True)
         title.setToolTip(entry.folder)
         layout.addWidget(title)
-        layout.addWidget(_label(f"{when_text(info)} · {info.summary.students}명", "tileMeta", self))
+        meta = _label(f"{when_text(info)} 응시 · {info.summary.students}명", "tileMeta", self)
+        meta.setToolTip(graded_text(info))
+        layout.addWidget(meta)
         row = QHBoxLayout()
         row.addWidget(_label(score_text(info), "tileScore", self))
         row.addStretch(1)
@@ -191,4 +200,4 @@ class HomePage(QWidget):
         self.import_button.setEnabled(enabled)
 
 
-__all__ = ["HomePage", "QuizTile", "score_text", "when_text"]
+__all__ = ["HomePage", "QuizTile", "graded_text", "score_text", "when_text"]

@@ -159,7 +159,7 @@ class QuizStore:
     # ----- reading -------------------------------------------------------------------------
 
     def list_quizzes(self) -> tuple[QuizEntry, ...]:
-        """Newest first; folders whose 퀴즈정보.json can't be read come last."""
+        """Latest quiz day first (then latest grading); unreadable folders come last."""
         return self._entries(self._paths.data_dir)
 
     def list_trash(self) -> tuple[QuizEntry, ...]:
@@ -183,7 +183,12 @@ class QuizStore:
                 entries.append(QuizEntry(path.name, path, read.value))
         readable = sorted(
             (entry for entry in entries if entry.info is not None),
-            key=lambda entry: (entry.info.created_at if entry.info else _now(), entry.folder),
+            key=lambda entry: (
+                (entry.info.quiz_day, entry.info.created_at)
+                if entry.info
+                else (_now().date(), _now()),
+                entry.folder,
+            ),
             reverse=True,
         )
         broken = [entry for entry in entries if entry.info is None]
@@ -296,6 +301,7 @@ class QuizStore:
                 cutoff,
                 RESPONSE_ORDER if bank.response_order else FORM_ORDER,
                 _summary(graded.value),
+                quiz_day(graded.value.selection),
             )
             written = self._write(staging.value, info, folder, graded.value)
             if isinstance(written, Err):
@@ -323,6 +329,7 @@ class QuizStore:
             app_version=self._version,
             graded_at=self._clock(),
             summary=_summary(opened.graded),
+            taken_on=quiz_day(opened.graded.selection),
         )
         data = path.value.parent
         staging = self._new_staging(data)
