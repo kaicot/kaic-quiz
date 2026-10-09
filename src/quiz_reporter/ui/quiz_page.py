@@ -15,7 +15,6 @@ from PySide6.QtCore import QDateTime, Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
-    QComboBox,
     QDateTimeEdit,
     QFileDialog,
     QFrame,
@@ -24,7 +23,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -49,7 +47,7 @@ from quiz_reporter.quiz.grading import (
     sheet_from_scores,
     suggest_cutoff,
 )
-from quiz_reporter.quiz.prompts import bank_text, completion_request, quiz_request, rows_from_text
+from quiz_reporter.quiz.prompts import bank_text, completion_request, rows_from_text
 from quiz_reporter.quiz.responses import KST, FormResponses, read_form_responses
 from quiz_reporter.ui.theme import set_role
 
@@ -172,13 +170,22 @@ class QuizPage(QWidget):
         cutoff_row = QHBoxLayout()
         self.cutoff_check = QCheckBox("이 시각 뒤 응답은 제외 (나중에 복습으로 다시 푼 것)", panel)
         self.cutoff_edit = QDateTimeEdit(panel)
-        self.cutoff_edit.setDisplayFormat("yyyy-MM-dd HH:mm")
-        self.cutoff_edit.setCalendarPopup(True)
+        self.cutoff_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        self.cutoff_edit.setCalendarPopup(False)
         self.cutoff_edit.setDateTime(QDateTime.currentDateTime())
         cutoff_row.addWidget(self.cutoff_check)
         cutoff_row.addWidget(self.cutoff_edit)
         cutoff_row.addStretch()
         inner.addLayout(cutoff_row)
+        self.cutoff_hint = QLabel(
+            "마감은 프로그램이 제안합니다: 응답 시각을 30분 넘게 비는 틈으로 나눠, 응답이 가장 많이"
+            " 몰린 시간대(수업 시간)의 마지막 응답 시각입니다. 그 뒤 응답(다음 날 복습 등)은 빠집니다."
+            " 시간대가 하나뿐이면 제안하지 않습니다. 시각은 직접 고칠 수 있고, 체크를 끄면 모두 채점합니다.",
+            panel,
+        )
+        self.cutoff_hint.setProperty("role", "hint")
+        self.cutoff_hint.setWordWrap(True)
+        inner.addWidget(self.cutoff_hint)
         self.selection_label = QLabel("", panel)
         self.selection_label.setObjectName("quizSelectionLabel")
         self.selection_label.setWordWrap(True)
@@ -186,60 +193,57 @@ class QuizPage(QWidget):
         layout.addWidget(panel)
         root.addWidget(card)
 
-        # 2. 문항표
+        # 2. 정답·해설 (문항표)
         card, layout, self.bank_badge = _step(
             self,
             2,
-            "문항표 (틀린 이유 자료)",
-            "문항마다 정답·해설·보기별 오답 이유를 담은 표입니다. AI에게 맡기세요. 없으면 점수와 정답만"
-            " 담은 기본 리포트가 나갑니다.",
+            "정답·해설 (문항표)",
+            "이미 본 구글 폼 퀴즈의 정답과 해설(틀린 이유)을 만듭니다. 폼 주소로 틀을 만들고 AI에게 해설을"
+            " 맡기세요. 건너뛰면 점수와 정답만 담은 기본 리포트가 나갑니다.",
         )
-        options = QHBoxLayout()
-        options.setSpacing(12)
-        new_panel, new_inner = _panel(card, "새로 출제할 때")
-        setting_row = QHBoxLayout()
-        self.count_spin = QSpinBox(new_panel)
-        self.count_spin.setRange(1, 100)
-        self.count_spin.setValue(10)
-        self.count_spin.setSuffix(" 문항")
-        self.level_combo = QComboBox(new_panel)
-        self.level_combo.addItems(["보통", "쉬움", "어려움"])
-        setting_row.addWidget(self.count_spin)
-        setting_row.addWidget(self.level_combo)
-        setting_row.addStretch()
-        new_inner.addLayout(setting_row)
-        self.scope_edit = QLineEdit(new_panel)
-        self.scope_edit.setPlaceholderText("범위 (예: 2~3주차 세포생리, 체액과 전해질)")
-        new_inner.addWidget(self.scope_edit)
-        self.copy_quiz_button = QPushButton("출제 프롬프트 복사", new_panel)
-        self.copy_quiz_button.setObjectName("quizCopyRequestButton")
-        new_inner.addWidget(self.copy_quiz_button)
-        new_hint = QLabel("교재 파일과 함께 AI 대화창에 붙여 넣으세요.", new_panel)
-        new_hint.setProperty("role", "hint")
-        new_hint.setWordWrap(True)
-        new_inner.addWidget(new_hint)
-        new_inner.addStretch()
-        old_panel, old_inner = _panel(card, "이미 본 퀴즈일 때")
-        self.form_edit = QLineEdit(old_panel)
-        self.form_edit.setPlaceholderText("공개 폼 주소 https://docs.google.com/forms/…")
-        old_inner.addWidget(self.form_edit)
-        self.form_button = QPushButton("폼 주소로 문항표 틀 만들기", old_panel)
+        self.xlsx_notice = QLabel(
+            "스프레드시트(xlsx) 응답에는 정답 표시가 없어 추가 작업이 필요합니다. 아래 '가'에서 폼 주소로"
+            " 틀을 만든 뒤, '나'에서 AI에게 정답과 해설을 함께 받아 넣으세요. (구글 폼 응답 탭에서 CSV로"
+            " 받으면 정답이 자동으로 들어갑니다.)",
+            card,
+        )
+        self.xlsx_notice.setProperty("role", "warning")
+        self.xlsx_notice.setWordWrap(True)
+        self.xlsx_notice.hide()
+        layout.addWidget(self.xlsx_notice)
+        form_panel, form_inner = _panel(card, "가. 폼 주소로 정답/해설 만들기")
+        form_row = QHBoxLayout()
+        self.form_edit = QLineEdit(form_panel)
+        self.form_edit.setPlaceholderText("구글 폼 주소 https://docs.google.com/forms/…")
+        form_row.addWidget(self.form_edit, 1)
+        self.form_button = QPushButton("폼 주소로 정답/해설 만들기", form_panel)
         self.form_button.setObjectName("quizFormButton")
-        old_inner.addWidget(self.form_button)
-        old_hint = QLabel(
-            "1단계 응답 파일을 먼저 고르면 정답까지 채운 틀이 생깁니다. 나머지는 아래 '해설 만들기"
-            " 프롬프트'로 AI에게 맡기세요.",
-            old_panel,
+        form_row.addWidget(self.form_button)
+        form_inner.addLayout(form_row)
+        self.form_status = QLabel(form_panel)
+        self.form_status.setWordWrap(True)
+        self.form_status.hide()
+        form_inner.addWidget(self.form_status)
+        form_hint = QLabel(
+            "학생이 푼 폼의 주소를 붙여 넣으세요. 문제와 보기는 폼에서, 정답은 ① 응답 CSV에서 가져와"
+            " 문항표 틀을 만듭니다. 해설은 아래 '나'에서 AI에게 받습니다.",
+            form_panel,
         )
-        old_hint.setProperty("role", "hint")
-        old_hint.setWordWrap(True)
-        old_inner.addWidget(old_hint)
-        old_inner.addStretch()
-        options.addWidget(new_panel, 1)
-        options.addWidget(old_panel, 1)
-        layout.addLayout(options)
+        form_hint.setProperty("role", "hint")
+        form_hint.setWordWrap(True)
+        form_inner.addWidget(form_hint)
+        layout.addWidget(form_panel)
 
-        result_panel, result_inner = _panel(card, "AI가 준 문항표 넣기")
+        result_panel, result_inner = _panel(card, "나. AI에게 정답/해설 받기 (AI가 준 문항표 넣기)")
+        ai_steps = QLabel(
+            "① '해설 만들기 프롬프트 복사'를 누르고 → ② AI 대화창에 붙여 넣은 뒤 → ③ AI가 준 표를"
+            " 복사해 '문항표 클립보드에서 붙여넣기'를 누르세요. AI가 엑셀 파일로 주면 '문항표 파일"
+            " 불러오기'를 씁니다. 빈 정답도 AI가 채웁니다.",
+            result_panel,
+        )
+        ai_steps.setProperty("role", "hint")
+        ai_steps.setWordWrap(True)
+        result_inner.addWidget(ai_steps)
         load_row = QHBoxLayout()
         self.bank_file_button = QPushButton("문항표 파일 불러오기", result_panel)
         self.bank_file_button.setToolTip("AI가 엑셀 파일(.xlsx)로 준 문항표를 고릅니다.")
@@ -252,10 +256,10 @@ class QuizPage(QWidget):
             "지금 문항표와 고칠 점을 담아, 빈 칸을 채우고 어려운 문장을 쉽게 고치게 하는 프롬프트를"
             " 복사합니다."
         )
-        load_row.addWidget(self.bank_file_button)
-        load_row.addWidget(self.bank_paste_button)
-        load_row.addStretch()
         load_row.addWidget(self.copy_complete_button)
+        load_row.addWidget(self.bank_paste_button)
+        load_row.addWidget(self.bank_file_button)
+        load_row.addStretch()
         result_inner.addLayout(load_row)
         status_row = QHBoxLayout()
         self.bank_label = QLabel("아직 문항표가 없습니다.", result_panel)
@@ -301,7 +305,6 @@ class QuizPage(QWidget):
         layout.addWidget(self.status_label)
         root.addWidget(card)
         root.addStretch()
-        self.copy_quiz_button.clicked.connect(self._copy_quiz_request)
         self.form_button.clicked.connect(self._request_form)
         self.bank_file_button.clicked.connect(self._load_bank_file)
         self.bank_paste_button.clicked.connect(self._paste_bank)
@@ -340,30 +343,28 @@ class QuizPage(QWidget):
         QApplication.clipboard().setText(text)
         self.set_status(f"{what}를 복사했습니다. AI 대화창에 붙여 넣으세요.")
 
-    def _copy_quiz_request(self) -> None:
-        self._copy(
-            quiz_request(
-                self.count_spin.value(),
-                self.scope_edit.text().strip(),
-                self.level_combo.currentText(),
-            ),
-            "출제 프롬프트",
-        )
+    def _form_message(self, text: str, role: str = "hint") -> None:
+        self.form_status.setText(text)
+        set_role(self.form_status, role)
+        self.form_status.setVisible(bool(text))
 
     def _request_form(self) -> None:
         address = self.form_edit.text().strip()
         if not address:
-            self.set_status("폼 주소를 붙여 넣으세요.")
+            self._form_message("폼 주소를 붙여 넣으세요.", "warning")
             return
-        self.set_status("폼을 읽는 중입니다…")
+        self._form_message("폼을 읽는 중입니다…")
         self.form_fetch_requested.emit(address)
 
     def set_form_page(self, result: object) -> None:
         """The controller's answer to ``form_fetch_requested``."""
         if isinstance(result, Err):
-            self.set_status(problems_text(result.errors))
+            self._form_message(problems_text(result.errors).removeprefix("- "), "warning")
             return
+        if isinstance(result, Ok):
+            result = result.value
         if not isinstance(result, FormPage):
+            self._form_message("폼을 읽지 못했습니다. 주소를 확인하세요.", "warning")
             return
         self._form = result
         if not self.name_edit.text().strip() and result.title:
@@ -376,22 +377,39 @@ class QuizPage(QWidget):
         if form is None:
             return
         if responses is None:
-            self.set_status(
-                f"폼에서 {len(form.questions)}문항을 읽었습니다. 이제 ② 응답 파일을 고르면 정답까지 채운 틀을"
-                " 만듭니다."
+            self._form_message(
+                f"폼에서 {len(form.questions)}문항을 읽었습니다. ① 응답 파일을 고르면 틀을 만듭니다."
             )
             return
         questions = tuple((question.title, question.options) for question in form.questions)
         sheet = sheet_from_form(responses, questions)
         if isinstance(sheet, Err):
+            self._form_message(
+                "이 폼과 응답 파일이 맞지 않습니다. 아래 고칠 점을 보세요.", "warning"
+            )
             self.show_problems(problems_text(sheet.errors))
             return
         skeleton = bank_from_sheet(responses, sheet.value)
         self._set_bank(skeleton, "폼에서 만든 문항표 틀")
         self._form = None
-        self.set_status(
-            "문항표 틀을 만들었습니다. '해설 만들기 프롬프트 복사'로 AI에게 빈 칸을 채워 달라고 하세요."
-        )
+        count = len(sheet.value.answers)
+        known = sum(answer is not None for answer in sheet.value.answers)
+        if known == count:
+            message = (
+                f"폼에서 {count}문항 틀을 만들었습니다(정답 포함). 이제 '나'에서"
+                " '해설 만들기 프롬프트 복사'로 AI에게 해설을 받으세요."
+            )
+        elif known == 0:
+            message = (
+                f"폼에서 {count}문항 틀을 만들었습니다. 응답 파일에 정답 정보가 없어 정답 칸이 비어"
+                " 있습니다. '나'에서 AI에게 정답과 해설을 함께 받으세요."
+            )
+        else:
+            message = (
+                f"폼에서 {count}문항 틀을 만들었습니다. 정답은 {known}문항만 채웠습니다. '나'에서 AI에게"
+                " 나머지 정답과 해설을 받으세요."
+            )
+        self._form_message(message, "success")
 
     def _load_bank_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -510,10 +528,12 @@ class QuizPage(QWidget):
             self.responses_label.setText(problems_text(result.errors))
             self._responses = None
             self._responses_path = None
+            self.xlsx_notice.hide()
             self._refresh()
             return
         responses = result.value
         self._responses = responses
+        self.xlsx_notice.setVisible(not responses.has_item_scores)
         self._responses_path = Path(path)
         stem = Path(path).stem.replace("(응답)", "").strip()
         if not self.name_edit.text().strip():

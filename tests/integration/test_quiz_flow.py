@@ -219,3 +219,24 @@ def test_a_damaged_workbook_is_explained_not_raised(tmp_path):
 
     assert isinstance(parse_bank(str(broken)), Err)
     assert isinstance(read_form_responses(str(responses)), Err)
+
+
+def test_the_cutoff_keeps_a_response_in_its_last_second_despite_milliseconds():
+    """Spreadsheets keep milliseconds; the deadline shown on screen has whole seconds."""
+    from datetime import datetime
+
+    from quiz_reporter.quiz.responses import KST, FormResponse, FormResponses
+
+    last = datetime(2026, 10, 6, 13, 28, 14, 512000, tzinfo=KST)
+    late = datetime(2026, 10, 7, 9, 0, 0, tzinfo=KST)
+    rows = tuple(
+        FormResponse(index, moment, f"2026000{index}", name, ("a",), (None,))
+        for index, (moment, name) in enumerate(((last, "가나"), (late, "다라")), 1)
+    )
+    responses = FormResponses("시트", ("문항",), rows)
+
+    on_screen = last.replace(microsecond=0)  # what the deadline field can hold
+
+    selection = select(responses, on_screen)
+    assert [row.name for row in selection.kept] == ["가나"]
+    assert [row.name for row in selection.late] == ["다라"]

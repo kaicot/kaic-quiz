@@ -156,6 +156,32 @@ Python {version}
     return _section("Python - PSF License", body)
 
 
+# Native libraries that Python's own modules bring into "_internal" (ssl/hashlib, ctypes,
+# xml, decimal, lzma, zlib), with the license text each one asks to be shipped.
+PYTHON_LIBRARIES = (
+    ("OpenSSL 3 (libssl, libcrypto: ssl, hashlib)", "Apache-2.0", "Apache-2.0.txt"),
+    ("libffi (ctypes)", "MIT", "libffi-MIT.txt"),
+    ("Expat (pyexpat, xml)", "MIT", "expat-MIT.txt"),
+    ("libmpdec / mpdecimal (decimal)", "BSD-2-Clause", "mpdecimal-BSD-2.txt"),
+    ("liblzma / XZ Utils (lzma)", "0BSD", "xz-0BSD.txt"),
+    ("zlib (zlib, zipfile)", "zlib License", "zlib.txt"),
+)
+
+
+def _python_libraries_section() -> str:
+    parts = [
+        'These libraries are part of the Python runtime bundled in "_internal" and are used\n'
+        "unmodified. (bzip2's notice is included in the Python section below.)"
+    ]
+    for title, license_name, filename in PYTHON_LIBRARIES:
+        text_path = HERE / "licenses" / filename
+        if not text_path.is_file():
+            raise RuntimeError(f"License text missing: {text_path}")
+        text = text_path.read_text(encoding="utf-8").strip()
+        parts.append(f"--- {title} - {license_name} ---\n\n{text}")
+    return _section("Libraries bundled with Python", "\n\n".join(parts))
+
+
 def render() -> str:
     """The full text of THIRD_PARTY_NOTICES.txt."""
     intro = """\
@@ -170,6 +196,7 @@ Quiz Reporter 자체의 사용 조건은 LICENSE.md를 보세요. / See LICENSE.
         _package_section("openpyxl", "openpyxl - MIT"),
         _package_section("et-xmlfile", "et-xmlfile - MIT"),
         _pyinstaller_section(),
+        _python_libraries_section(),
         _python_section(),
     ]
     return "\n".join(sections)

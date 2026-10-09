@@ -20,7 +20,7 @@ from PyInstaller.utils.win32.versioninfo import (
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821  (SPECPATH is set by PyInstaller)
 SRC_ROOT = PROJECT_ROOT / "src"
-ICON = PROJECT_ROOT / "packaging" / "quiz_reporter.ico"
+ICON = SRC_ROOT / "quiz_reporter" / "resources" / "app_icon.ico"
 SVG = SRC_ROOT / "quiz_reporter" / "resources" / "app_icon.svg"
 
 VERSION = re.search(
@@ -125,8 +125,9 @@ analysis = Analysis(  # noqa: F821
     [str(PROJECT_ROOT / "main.py")],
     pathex=[str(SRC_ROOT)],
     binaries=[],
-    # app.py loads Path(__file__).parent / "resources" / "app_icon.svg"
-    datas=[(str(SVG), "quiz_reporter/resources")],
+    # The window and splash load the multi-size app_icon.ico (qico plugin); the SVG is the
+    # source of the large sizes.
+    datas=[(str(SVG), "quiz_reporter/resources"), (str(ICON), "quiz_reporter/resources")],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

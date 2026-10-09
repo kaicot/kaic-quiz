@@ -14,6 +14,7 @@ from __future__ import annotations
 from html import escape
 from typing import NamedTuple
 
+import quiz_reporter
 from quiz_reporter.quiz.bank import (
     BANK_HEADERS,
     BANK_SHEET,
@@ -36,6 +37,8 @@ class HelpSection(NamedTuple):
     title: str
 
 
+HOMEPAGE = "https://github.com/kaicot/kaic-quiz"
+
 SECTIONS: tuple[HelpSection, ...] = (
     HelpSection("home", "처음 화면(홈)"),
     HelpSection("new_quiz", "새 퀴즈 채점"),
@@ -45,6 +48,7 @@ SECTIONS: tuple[HelpSection, ...] = (
     HelpSection("settings", "설정"),
     HelpSection("files", "폴더와 업데이트"),
     HelpSection("trouble", "문제 해결"),
+    HelpSection("about", "프로그램 정보"),
 )
 
 # The help section that matches each main-window page.
@@ -239,10 +243,11 @@ def _new_quiz() -> str:
         + "<p>학번이 8자리 숫자가 아니면 오타일 수 있습니다. 그 학생은 채점에는 들어가지만"
         " 결과에서 노랗게 표시되고, 리포트에는 '학번 확인 필요'로 나옵니다. 개별 PDF의 파일"
         " 이름에는 <b>학번확인필요</b>가 들어갑니다. 구글 폼에서 학번을 고친 뒤 다시 채점하세요.</p>"
-        + f"<h3>② {escape('문항표 (틀린 이유 자료)')}</h3>"
-        + "<p>문항마다 정답, 해설, 보기별 오답 이유를 담은 표입니다. 이 표가 있어야 학생마다"
+        + f"<h3>② {escape('정답·해설 (문항표)')}</h3>"
+        + "<p>이미 본 구글 폼 퀴즈의 정답과 해설(틀린 이유)을 문항표로 만듭니다. 이 표가 있어야 학생마다"
         " '왜 틀렸는지'가 리포트에 들어갑니다. 없으면 점수와 정답만 담은 기본 리포트가 나갑니다."
-        " 만들고 넣는 방법은 <a href='#question_bank'>문항표와 AI 프롬프트</a> 장을 보세요.</p>"
+        f" {_btn('폼 주소로 정답/해설 만들기')}부터 시작하세요. 자세한 방법은"
+        " <a href='#question_bank'>문항표와 AI 프롬프트</a> 장을 보세요.</p>"
         + f"<h3>③ {escape('채점하고 리포트 만들기')}</h3>"
         + _steps(
             f"{_btn('채점하고 리포트 만들기')}를 누릅니다. 응답을 고르기 전에는 눌러지지 않습니다.",
@@ -292,24 +297,24 @@ def _question_bank() -> str:
         f" {READABLE_LIMIT * 2}자 이내로 씁니다. 더 긴 글은 문항표를 넣을 때 '학생이 읽기에 긴"
         " 문장'으로 알려 줍니다. 그때 해설 만들기 프롬프트로 AI에게 쉽게 줄여 달라고 하면"
         " 됩니다.</p>"
-        + "<h3>방법 A. 새로 출제할 때</h3>"
+        + "<h3>가. 폼 주소로 정답/해설 만들기</h3>"
         + _steps(
-            f"{_name('새로 출제할 때')} 상자에서 문항 수, 난이도(쉬움·보통·어려움), 범위를 정합니다.",
-            f"{_btn('출제 프롬프트 복사')}를 누릅니다.",
-            "AI 대화창에 교재 파일과 함께 붙여 넣습니다.",
-            "AI가 준 표를 아래 '표 넣기' 방법으로 넣습니다.",
+            "① 단계에서 응답 파일을 먼저 고릅니다. 구글 폼 CSV면 정답을 응답의 점수 열에서 가져옵니다.",
+            "학생이 푼 구글 폼의 주소(https://docs.google.com/forms/…)를 붙여 넣고"
+            f" {_btn('폼 주소로 정답/해설 만들기')}를 누릅니다. 폼이 공개되어 있어야 읽을 수 있습니다.",
+            "문제, 보기(폼 순서 그대로), 정답이 채워진 문항표 틀이 생깁니다. 해설, 오답이유, 함정유형,"
+            " 복습포인트는 아직 비어 있습니다.",
         )
-        + "<h3>방법 B. 이미 본 퀴즈일 때</h3>"
+        + _warn(
+            "응답 파일이 스프레드시트(xlsx)면 정답 표시가 없어 <b>추가 작업이 필요합니다</b>. 틀의 정답 칸이"
+            " 비어 있으니, '나'에서 AI에게 정답과 해설을 함께 받으세요. 구글 폼 응답 탭에서 CSV로 받으면"
+            " 정답이 자동으로 들어갑니다."
+        )
+        + "<h3>나. AI에게 정답/해설 받기</h3>"
         + _steps(
-            "① 단계에서 응답 파일을 먼저 고릅니다. 정답은 응답 파일의 점수 열에서 가져옵니다.",
-            f"{_name('이미 본 퀴즈일 때')} 상자에 <b>공개된</b> 폼 주소"
-            f" (https://docs.google.com/forms/…)를 붙여 넣고 {_btn('폼 주소로 문항표 틀 만들기')}를"
-            " 누릅니다.",
-            "문제, 보기, 정답이 채워진 틀이 만들어집니다. 해설, 오답이유, 함정유형, 복습포인트는"
-            " 아직 비어 있습니다.",
-            f"{_btn('해설 만들기 프롬프트 복사')}를 눌러 AI 대화창에 붙여 넣고, 빈 칸을 채워 달라고"
-            " 합니다.",
-            "AI가 준 표를 아래 '표 넣기' 방법으로 넣습니다.",
+            f"{_btn('해설 만들기 프롬프트 복사')}를 누릅니다. 지금 문항표와 채울 칸, 고칠 점이 담깁니다.",
+            "AI 대화창(ChatGPT, Claude, Gemini 등)에 붙여 넣습니다. 학생 이름·학번은 들어가지 않습니다.",
+            "AI가 준 표를 아래 'AI가 준 표 넣기' 방법으로 넣습니다. 빈 정답도 AI가 채웁니다.",
         )
         + "<h3>AI가 준 표 넣기</h3>"
         + _bullets(
@@ -544,10 +549,6 @@ def _files() -> str:
             "<b>쓰기 권한이 없습니다.</b> 프로그램을 끄고 폴더 전체를 쓰기가 되는 곳으로 옮긴 뒤"
             " 다시 실행하세요.",
         )
-        + "<h3>라이선스</h3>"
-        + "<p>퀴즈 리포터는 PolyForm Noncommercial 1.0.0으로 배포합니다(LICENSE.md). 개인 공부·연구와"
-        " 학교·공공기관·비영리단체에서는 무료로 쓸 수 있고, 상업적 이용은 허락되지 않습니다.</p>"
-        + "<p>이 프로그램은 Qt for Python(PySide6)과 Qt를 GNU LGPL 3.0 조건으로 사용합니다. 저작권과 라이선스 전문은 프로그램 폴더의 THIRD_PARTY_NOTICES.txt에 있습니다.</p>"
     )
 
 
@@ -589,6 +590,39 @@ def _trouble() -> str:
     return _anchor("trouble") + body
 
 
+def _about() -> str:
+    rows = (
+        ("프로그램", f"퀴즈 리포터 (Quiz Reporter) v{escape(quiz_reporter.__version__)}"),
+        ("만든 사람", "조승현 (Cho, Seung-Hyun)"),
+        ("연락처", "kaic21@gmail.com"),
+        ("홈페이지·새 버전", escape(HOMEPAGE)),
+        ("저작권", "Copyright (c) 2026 조승현 (Cho, Seung-Hyun)"),
+    )
+    return (
+        _anchor("about")
+        + _grid(("항목", "내용"), rows, "100%")
+        + "<h3>라이선스</h3>"
+        + "<p>퀴즈 리포터는 <b>PolyForm Noncommercial License 1.0.0</b>으로 배포합니다(프로그램 폴더의"
+        " LICENSE.md). 개인의 공부·연구와 학교·공공기관·비영리단체에서는 무료로 쓰고, 고치고, 나눠 줄 수"
+        " 있습니다. 판매 등 <b>상업적 이용은 허락되지 않습니다</b>. 상업적 이용 문의: kaic21@gmail.com."
+        " 프로그램은 있는 그대로 제공되며, 사용으로 생긴 손해에 만든 사람은 책임지지 않습니다.</p>"
+        + "<h3>함께 쓰는 부품</h3>"
+        + _bullets(
+            "<b>Qt for Python(PySide6)과 Qt</b> — GNU LGPL 3.0. 프로그램 폴더 _internal 안의 Qt 파일은"
+            " 고치지 않은 그대로이며, 직접 고치거나 바꿔 끼울 수 있습니다.",
+            "<b>openpyxl, et-xmlfile</b> — MIT 라이선스 (엑셀 파일)",
+            "<b>Python</b> — PSF 라이선스, 함께 들어 있는 OpenSSL(Apache 2.0)·libffi·expat(MIT)·"
+            "mpdecimal(BSD)·xz·zlib·bzip2",
+            "<b>PyInstaller 실행기</b> — GPL 2.0 이상(실행 파일 예외 조항 포함)",
+        )
+        + "<p>각 부품의 저작권과 라이선스 전문은 프로그램 폴더의 <b>THIRD_PARTY_NOTICES.txt</b>에"
+        " 있습니다.</p>"
+        + _tip(
+            "학생 자료는 이 PC의 프로그램 폴더에만 저장되고, 새 버전 확인 때는 버전 번호만 보냅니다."
+        )
+    )
+
+
 def help_html() -> str:
     """The whole manual as one document; each section starts at an anchor named by its key."""
     return (
@@ -603,6 +637,7 @@ def help_html() -> str:
         + _settings()
         + _files()
         + _trouble()
+        + _about()
         + "</body></html>"
     )
 

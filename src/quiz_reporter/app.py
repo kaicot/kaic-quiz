@@ -16,6 +16,7 @@ import quiz_reporter
 from quiz_reporter import self_check
 from quiz_reporter.infrastructure.paths import ManagedPaths, resolve_portable_root
 from quiz_reporter.startup import StartupState, prepare
+from quiz_reporter.startup_splash import StartupSplash
 from quiz_reporter.storage.quiz_store import QuizStore
 from quiz_reporter.ui.controller import AppController
 from quiz_reporter.ui.main_window import TITLE, MainWindow
@@ -23,7 +24,7 @@ from quiz_reporter.ui.quiz_pdf import write_quiz_reports
 from quiz_reporter.ui.theme import apply_theme
 
 LOCK_NAME = ".quiz-reporter.lock"
-ICON_PATH = Path(__file__).resolve().parent / "resources" / "app_icon.svg"
+ICON_PATH = Path(__file__).resolve().parent / "resources" / "app_icon.ico"
 ALREADY_RUNNING = "퀴즈 리포터가 이 폴더에서 이미 실행 중입니다. 열려 있는 창을 쓰세요."
 
 
@@ -52,21 +53,28 @@ def build(state: StartupState, version: str) -> tuple[MainWindow, AppController]
     return window, controller
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    application: QApplication | None = None,
+    splash: StartupSplash | None = None,
+) -> int:
+    """Run the program; main.py passes the application and splash it already put on screen."""
     arguments = list(argv) if argv is not None else sys.argv
     if self_check.FLAG in arguments:
         # Hidden: used to verify a built program (see self_check). No window, no lock.
         position = arguments.index(self_check.FLAG)
         if position + 1 >= len(arguments):
             return 2
-        application = QApplication(arguments[:1])
+        checker = application or QApplication(arguments[:1])
         try:
             return 0 if self_check.run(Path(arguments[position + 1])) else 1
         except Exception:  # e.g. the report path can't be written: no dialog, just a code
             return 3
         finally:
-            del application
-    application = QApplication(arguments)
+            del checker
+    if application is None:
+        application = QApplication(arguments)
     application.setApplicationName(TITLE)
     application.setApplicationVersion(quiz_reporter.__version__)
     apply_theme(application)
@@ -75,6 +83,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     lock = QLockFile(str(paths.root / LOCK_NAME))
     lock.setStaleLockTime(0)
     if not lock.tryLock(200) and lock.error() == QLockFile.LockError.LockFailedError:
+        if splash is not None:
+            splash.close()  # it stays on top and would hide the message
         QMessageBox.information(None, TITLE, ALREADY_RUNNING)
         return 0
     state = prepare(paths, quiz_reporter.__version__)
@@ -83,6 +93,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.getLogger(__name__).info("start %s at %s", quiz_reporter.__version__, paths.root)
     window, controller = build(state, quiz_reporter.__version__)
     window.show()
+    if splash is not None:
+        splash.finish(window)
     QTimer.singleShot(1500, controller.check_for_update)
     code = application.exec()
     controller.shutdown()

@@ -326,3 +326,25 @@ def test_import_waits_for_a_running_job(qtbot, tmp_path, monkeypatch):
     assert picked == []
     app.wait()
     assert app.window.settings_page.import_button.isEnabled()
+
+
+def test_the_form_address_builds_a_skeleton_through_the_controller(qtbot, tmp_path, csv):
+    """The controller hands the fetched form (an Ok result) to the page, which uses it."""
+    from quiz_reporter.quiz.form_page import FormPage, FormQuestion
+    from tests.helpers.quiz_forms import QUESTIONS
+
+    app = App(qtbot, tmp_path / "Quiz-Reporter")
+    form = FormPage("생리 퀴즈", tuple(FormQuestion(q, options) for q, options, _, _ in QUESTIONS))
+    app.controller._fetch_form = lambda address: Ok(form)
+    app.controller.new_quiz()
+    page = app.window.quiz_page
+    page.load_responses(str(csv))
+    page.form_edit.setText("https://docs.google.com/forms/d/e/abc/viewform?usp=dialog")
+
+    page.form_button.click()
+    app.wait()
+
+    assert page.bank is not None and len(page.bank.items) == 3
+    assert [item.answer for item in page.bank.items] == [3, 2, 3]
+    assert "틀을 만들었습니다" in page.form_status.text()
+    assert page.form_status.isVisibleTo(page)

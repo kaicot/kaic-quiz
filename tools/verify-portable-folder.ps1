@@ -71,6 +71,8 @@ function Test-Folder([string]$Root, [string]$Label) {
 
     $icon = Join-Path $internal 'quiz_reporter\resources\app_icon.svg'
     Check "${Label}: app_icon.svg inside the bundle" (Test-Path -LiteralPath $icon -PathType Leaf) '_internal/quiz_reporter/resources/app_icon.svg'
+    $ico = Join-Path $internal 'quiz_reporter\resources\app_icon.ico'
+    Check "${Label}: app_icon.ico inside the bundle" (Test-Path -LiteralPath $ico -PathType Leaf) '_internal/quiz_reporter/resources/app_icon.ico'
 
     $plugins = Join-Path $internal 'PySide6\plugins'
     foreach ($plugin in @('platforms\qwindows.dll', 'imageformats\qsvg.dll', 'iconengines\qsvgicon.dll')) {

@@ -12,6 +12,7 @@ import pytest
 import quiz_reporter
 
 ROOT = Path(__file__).resolve().parents[2]
+ICON = ROOT / "src" / "quiz_reporter" / "resources" / "app_icon.ico"
 SPEC = ROOT / "packaging" / "Quiz_Reporter.spec"
 NOTICES = ROOT / "packaging" / "generate_third_party_notices.py"
 BUILD = ROOT / "tools" / "build-portable-folder.ps1"
@@ -30,11 +31,11 @@ def quoted(text: str, start: str, end: str, quote: str) -> list[str]:
 
 
 def test_all_release_files_exist():
-    for path in (SPEC, NOTICES, BUILD, VERIFY, SMOKE, ROOT / "packaging" / "quiz_reporter.ico"):
+    for path in (SPEC, NOTICES, BUILD, VERIFY, SMOKE, ICON):
         assert path.is_file(), path
     assert (ROOT / "packaging" / "licenses" / "LGPL-3.0.txt").is_file()
     assert (ROOT / "packaging" / "licenses" / "GPL-3.0.txt").is_file()
-    assert (ROOT / "packaging" / "quiz_reporter.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"
+    assert ICON.read_bytes()[:4] == b"\x00\x00\x01\x00"
 
 
 def test_packaging_folder_is_not_a_python_package():
@@ -53,7 +54,7 @@ def test_spec_names_the_program_and_its_data():
     assert "console=False" in spec
     assert "exclude_binaries=True" in spec  # onedir
     assert 'PROJECT_ROOT / "main.py"' in spec
-    assert "quiz_reporter.ico" in spec
+    assert "app_icon.ico" in spec
     assert "app_icon.svg" in spec
     assert '"quiz_reporter/resources"' in spec  # where app.py looks for the icon
     assert 'f"Quiz-Reporter-v{VERSION}"' in spec
@@ -205,3 +206,26 @@ def test_notices_cover_every_bundled_package(tmp_path: Path):
     assert "Python Software Foundation" in text
     assert "GNU LESSER GENERAL PUBLIC LICENSE" in text
     assert "LicenseRef-Qt-Commercial" not in text
+
+
+def test_python_runtime_library_licenses_are_shipped():
+    """OpenSSL, libffi, expat, libmpdec, xz and zlib come with Python's modules; ship their texts."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "notices", ROOT / "packaging" / "generate_third_party_notices.py"
+    )
+    assert spec is not None and spec.loader is not None
+    notices = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(notices)
+    for _, _, filename in notices.PYTHON_LIBRARIES:
+        assert (ROOT / "packaging" / "licenses" / filename).is_file(), filename
+    text = notices._python_libraries_section()
+    for marker in (
+        "Apache License",
+        "Anthony Green",
+        "Thai Open Source",
+        "Stefan Krah",
+        "Jean-loup Gailly",
+    ):
+        assert marker in text

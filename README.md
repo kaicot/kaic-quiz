@@ -13,8 +13,8 @@ PDF로 만드는 Windows용 포터블 프로그램입니다.
 - 구글 폼 응답 CSV(권장) 또는 연결된 스프레드시트 xlsx로 채점
 - 수업 시간대 뒤에 다시 푼 응답(복습)은 마감 시각으로 자동 제외, 같은 학번은 첫 응답만 사용
 - 문항표(문제·보기·정답·해설·오답 이유·함정 유형·복습 포인트)로 학생별 피드백
-  - 문항표는 AI에게 맡깁니다. 화면의 **출제 프롬프트 복사**, **해설 만들기 프롬프트 복사**로 프롬프트를
-    만들고, AI가 준 표를 붙여넣거나 xlsx로 불러옵니다.
+  - 학생이 푼 구글 폼의 주소로 **폼 주소로 정답/해설 만들기**를 누르면 문제·보기·정답이 든 틀이 생기고,
+    **해설 만들기 프롬프트 복사**로 AI에게 해설(틀린 이유)을 받아 붙여 넣습니다.
   - 문항표가 없어도 구글 폼 CSV의 문항별 점수로 기본 리포트를 만듭니다. 이때는 폼의 보기 순서를 알 수
     없어 리포트에 보기 번호 없이 보기 글자만 씁니다(공개 폼 주소로 문항표 틀을 만들면 번호도 나옵니다).
 - 리포트: 인쇄용 묶음 PDF(학생당 1쪽), 학생별 개별 PDF. 흑백 인쇄에도 읽기 좋게 만들었습니다.
@@ -31,12 +31,17 @@ PDF로 만드는 Windows용 포터블 프로그램입니다.
 
 ## 설치와 실행
 
-Windows 10/11(64비트)에서 씁니다. Python은 필요 없습니다.
+Windows 10(1809 이상)·11, 64비트에서 씁니다(검증은 Windows 11에서 했습니다). Python은 필요 없습니다.
 
 1. 릴리즈 페이지에서 `Quiz-Reporter-vX.Y.Z-windows.zip`을 받습니다.
 2. 쓰기 가능한 전용 폴더(예: `D:\퀴즈리포터\`)에 풉니다. `C:\Program Files`나 바탕 화면 바로 아래,
    동기화 폴더는 피하세요.
 3. 폴더 안의 `Quiz Reporter.exe`를 실행합니다. EXE만 따로 옮기지 말고 폴더째 둡니다.
+
+**처음 실행할 때 "Windows의 PC 보호" 창이 뜰 수 있습니다.** 이 프로그램은 유료 코드 서명을 하지 않아서
+Windows가 처음 보는 프로그램으로 경고합니다. **추가 정보 → 실행**을 누르면 됩니다. 받은 파일이 온전한지는
+명령 프롬프트에서 `certutil -hashfile Quiz-Reporter-v1.0.0-windows.zip SHA256`으로 확인해 릴리즈의
+`.sha256` 파일 값과 비교할 수 있습니다.
 
 ```text
 D:\퀴즈리포터\Quiz-Reporter-v1.0.0\
@@ -91,12 +96,13 @@ uv pip install --python .venv -c constraints/windows-py312.txt -e ".[dev]"
 ```powershell
 $env:QT_QPA_PLATFORM = "offscreen"
 .venv\Scripts\python -m pytest -q
-.venv\Scripts\ruff check src tests
-.venv\Scripts\ruff format --check src tests
+.venv\Scripts\ruff check src tests packaging tools
+.venv\Scripts\ruff format --check src tests packaging tools
 .venv\Scripts\mypy
 ```
 
 배포 폴더 만들기와 검증은 `tools\build-portable-folder.ps1`, `tools\verify-portable-folder.ps1`,
-`tools\smoke-portable.py`를 씁니다(`uv pip install ... -e ".[dev,build]"` 필요).
+`tools\smoke-portable.py`를 씁니다(`uv pip install ... -e ".[dev,build]"` 필요). 만든 EXE는
+`"Quiz Reporter.exe" --self-check 결과.json`으로 창 없이 스스로 점검합니다(합성 자료만 씀).
 
 개발 규칙은 [AGENTS.md](AGENTS.md)에 있습니다.

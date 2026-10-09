@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from PySide6.QtWidgets import QPushButton
+
 from quiz_reporter.errors import Ok
 from quiz_reporter.quiz.bank import bank_workbook_bytes
 from quiz_reporter.quiz.form_page import FormPage, FormQuestion
@@ -134,7 +136,9 @@ def test_form_errors_are_shown(qtbot, tmp_path):
 
     page.set_form_page(fetch_form_page("not a url"))
 
-    assert "구글 폼 주소가 아닙니다" in page.status_label.text()
+    # The message sits next to the form button, where the user is looking.
+    assert "구글 폼 주소가 아닙니다" in page.form_status.text()
+    assert page.form_status.isVisibleTo(page)
     assert isinstance(Ok(1), Ok)
 
 
@@ -147,3 +151,34 @@ def test_grading_from_csv_scores_alone_is_not_numbered(qtbot, tmp_path):
 
     assert len(requests) == 1 and requests[0].bank.response_order
     assert requests[0].sheet.from_responses
+
+
+def test_the_cutoff_has_no_calendar_and_shows_seconds(qtbot, tmp_path):
+    page = _page(qtbot, tmp_path)
+
+    assert not page.cutoff_edit.calendarPopup()
+    assert page.cutoff_edit.displayFormat().endswith("ss")
+    assert "30분" in page.cutoff_hint.text()
+
+
+def test_a_spreadsheet_response_file_says_answers_need_extra_work(qtbot, tmp_path):
+    page = _page(qtbot, tmp_path, form_xlsx(), "응답.xlsx")
+    assert page.xlsx_notice.isVisibleTo(page)
+    assert "추가 작업" in page.xlsx_notice.text()
+
+    page.load_responses(str(_write(tmp_path, "응답.csv", form_csv())))
+    assert not page.xlsx_notice.isVisibleTo(page)
+
+
+def test_step_two_starts_from_the_form_address(qtbot, tmp_path):
+    page = _page(qtbot, tmp_path)
+    labels = {button.text() for button in page.findChildren(QPushButton)}
+
+    assert page.form_button.text() == "폼 주소로 정답/해설 만들기"
+    assert "출제 프롬프트 복사" not in labels
+
+
+def _write(folder, name, data):
+    path = folder / name
+    path.write_bytes(data)
+    return path

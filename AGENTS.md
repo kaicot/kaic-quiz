@@ -57,6 +57,8 @@
 - **읽기 전용으로 열림**: 프로그램 폴더에 쓸 수 없거나(위치를 옮기게 안내), 더 새 버전이 만든 자료입니다
   (새 버전으로 열게 안내). 화면 위쪽 노란 띠에 이유가 나옵니다.
 - **"이미 실행 중"**: 같은 폴더에서 이미 켜진 창을 쓰게 합니다.
+- **"Windows의 PC 보호" 창**: 코드 서명이 없는 프로그램이라 처음에 뜰 수 있습니다. 릴리즈 페이지에서 받은
+  파일이면 **추가 정보 → 실행**을 안내합니다. 백신을 끄라고 안내하지 마세요.
 - **xlsx 응답이라 채점이 안 됨**: 구글 폼에서 받은 CSV를 쓰거나 문항표를 넣게 합니다.
 - **문항표가 폼과 다르다고 나옴**: 문제와 보기 글자가 폼과 같아야 합니다.
 - **학번확인필요**: 학번이 8자리 숫자가 아닌 응답입니다. 채점결과 엑셀 비고에 입력값이 있습니다.
@@ -93,8 +95,8 @@ PolyForm Noncommercial 1.0.0(소스 공개, 비상업적 이용만 허락)입니
 ```powershell
 $env:QT_QPA_PLATFORM = "offscreen"
 .venv\Scripts\python -m pytest -q
-.venv\Scripts\ruff check src tests          # E4·E7·E9·F + I(정렬)·B(버그 패턴)·UP(최신 문법)
-.venv\Scripts\ruff format --check src tests
+.venv\Scripts\ruff check src tests packaging tools   # E4·E7·E9·F + I(정렬)·B(버그 패턴)·UP(최신 문법)
+.venv\Scripts\ruff format --check src tests packaging tools
 .venv\Scripts\mypy
 ```
 
@@ -120,6 +122,21 @@ $env:QT_QPA_PLATFORM = "offscreen"
 - 릴리즈 때는 `[미배포]`를 `[X.Y.Z] - YYYY-MM-DD`로 확정하고, `docs/releases/X.Y.Z.md`(새 기능·고친 문제·자료
   형식 변경 여부·검증 결과)를 쓰고, 릴리즈 커밋에 `vX.Y.Z` 태그를 붙입니다. 이 노트가 GitHub 릴리즈 본문입니다.
 - 새 버전 안내는 GitHub `releases/latest`의 태그를 읽으므로 태그는 반드시 `vX.Y.Z` 형식입니다.
+
+## 배포
+
+- 배포 전: `tools\build-portable-folder.ps1` → `tools\verify-portable-folder.ps1 -Folder … -Zip …` →
+  `tools\smoke-portable.py`(EXE의 `--self-check` 포함) → 개인정보 누설 점검(실제 자료와 커밋 전체·배포 파일
+  대조 0건).
+- 새 부품을 넣으면 `packaging/generate_third_party_notices.py`에 라이선스 고지를 더합니다. Qt 모듈은
+  Core·Gui·Widgets·Svg만 넣습니다(GPL 전용 모듈 금지).
+
+## 알려진 정리 과제
+
+- `Err`에서 첫 오류의 `reason`을 꺼내는 코드가 여러 곳에 반복됩니다(startup, data_import, trash_dialog,
+  quiz_store, self_check, controller). 1.1에서 `quiz_reporter.errors`의 함수 하나로 모읍니다.
+- '문항표 바꿔 다시 만들기'의 다시 읽기와 휴지통 작업은 화면 스레드에서 돕니다(33명 기준 수 밀리초).
+  학생 수가 많아지면 뒤에서 돌리도록 바꿉니다.
 
 ## 작업 방식
 

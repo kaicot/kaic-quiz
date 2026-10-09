@@ -169,7 +169,7 @@ def test_buttons_quoted_in_the_manual_exist_on_the_quiz_page(qtbot) -> None:
         for key in ("new_quiz", "question_bank")
         for label in _BUTTON.findall(_section_html(key))
     }
-    assert {"출제 프롬프트 복사", "해설 만들기 프롬프트 복사"} <= quoted_all
+    assert {"폼 주소로 정답/해설 만들기", "해설 만들기 프롬프트 복사"} <= quoted_all
 
 
 def test_the_bank_columns_and_trap_types_come_from_the_bank_module() -> None:
@@ -205,3 +205,22 @@ def test_the_qt_lgpl_notice_is_shown_while_running(qtbot):
     assert "LGPL" in window.credit_label.toolTip()
     assert window.credit_label.toolTip() == QT_NOTICE
     assert "THIRD_PARTY_NOTICES.txt" in help_html()
+
+
+def test_the_last_section_is_the_program_information():
+    import quiz_reporter
+    from quiz_reporter.ui.help_content import SECTIONS, help_html
+
+    assert SECTIONS[-1].key == "about"
+    html = help_html()
+    about = html.split("name='about'", 1)[1]
+    for expected in (
+        quiz_reporter.__version__,
+        "조승현",
+        "kaic21@gmail.com",
+        "PolyForm Noncommercial",
+        "LGPL",
+        "THIRD_PARTY_NOTICES.txt",
+        "github.com/kaicot/kaic-quiz",
+    ):
+        assert expected in about, expected

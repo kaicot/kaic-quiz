@@ -101,6 +101,19 @@ def install_root(chosen: str | Path) -> Path | None:
     return None
 
 
+def _installs_inside(folder: Path, current: Path) -> list[Path]:
+    """Program folders directly inside ``folder``, leaving out the one running now."""
+    try:
+        children = sorted(path for path in folder.iterdir() if path.is_dir())
+    except OSError:
+        return []
+    return [
+        child
+        for child in children
+        if not _same_folder(child, current) and _looks_like_install(child)
+    ]
+
+
 def _same_folder(left: Path, right: Path) -> bool:
     try:
         return str(left.resolve()).casefold() == str(right.resolve()).casefold()
@@ -183,6 +196,18 @@ def import_previous_install(
             "지금 쓰고 있는 프로그램 폴더입니다. 이전 버전 프로그램 폴더를 고르세요.",
         )
     source_root = install_root(chosen_path)
+    if source_root is None:
+        # The folder that holds the program folders (e.g. D:\퀴즈리포터 with v1.0.0 and v1.0.1).
+        nested = _installs_inside(chosen_path, paths.root)
+        if len(nested) == 1:
+            source_root = nested[0]
+        elif nested:
+            names = ", ".join(path.name for path in nested)
+            return _error(
+                "IMPORT_SOURCE_AMBIGUOUS",
+                f"이 폴더 안에 이전 버전 프로그램 폴더가 {len(nested)}개 있습니다({names})."
+                " 가져올 폴더 하나를 고르세요.",
+            )
     if source_root is None:
         return _error(
             "IMPORT_SOURCE_INVALID",

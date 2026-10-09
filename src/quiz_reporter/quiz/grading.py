@@ -42,6 +42,10 @@ def suggest_cutoff(responses: FormResponses) -> datetime | None:
     return busiest[-1]
 
 
+def _whole_second(moment: datetime) -> datetime:
+    return moment.replace(microsecond=0)
+
+
 def select(responses: FormResponses, cutoff: datetime | None) -> Selection:
     """Answers up to ``cutoff``; a student who answered twice counts with the first answer."""
     ordered = sorted(
@@ -51,7 +55,9 @@ def select(responses: FormResponses, cutoff: datetime | None) -> Selection:
     late = tuple(
         row
         for row in ordered
-        if cutoff is not None and row.submitted_at is not None and row.submitted_at > cutoff
+        if cutoff is not None
+        and row.submitted_at is not None
+        and _whole_second(row.submitted_at) > _whole_second(cutoff)
     )
     window = [row for row in ordered if row not in late]
     kept: list[FormResponse] = []

@@ -36,7 +36,7 @@ package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.package-data]
-quiz_reporter = ["resources/*.svg"]
+quiz_reporter = ["resources/*.svg", "resources/*.ico"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

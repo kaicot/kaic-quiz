@@ -396,3 +396,21 @@ def test_an_old_install_kept_inside_the_new_program_folder_can_be_chosen(install
 
     assert isinstance(result, Ok), result
     assert (result.value.imported, result.value.trashed) == (2, 1)
+
+
+def test_choosing_the_folder_that_holds_both_versions_imports_the_old_one(installs, tmp_path):
+    # D:\퀴즈리포터\ with the old and the new program folders side by side.
+    result = _import(installs, tmp_path)
+
+    assert isinstance(result, Ok), result
+    assert (result.value.imported, result.value.trashed) == (2, 1)
+
+
+def test_two_old_versions_in_the_chosen_folder_ask_which_one(installs, tmp_path):
+    shutil.copytree(installs.old_root, tmp_path / "더 이전 버전")
+
+    result = _import(installs, tmp_path)
+
+    assert isinstance(result, Err)
+    assert result.errors[0].code == "IMPORT_SOURCE_AMBIGUOUS"
+    assert "2개" in result.errors[0].context["reason"]

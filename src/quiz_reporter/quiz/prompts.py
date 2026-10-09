@@ -35,22 +35,6 @@ _FORMAT = f"""[출력 형식 — 반드시 지켜 주세요]
 - 단원: 교재의 장·절 이름(짧게)."""
 
 
-def quiz_request(count: int, scope: str, level: str) -> str:
-    """Write a new quiz from teaching material the user attaches."""
-    return f"""당신은 대학 보건계열 교수의 퀴즈 출제를 돕습니다. 첨부한 교재(또는 강의 자료)를 바탕으로
-5지선다 객관식 {count}문항을 만들어 주세요.
-- 범위: {scope or "첨부 자료 전체"}
-- 난이도: {level or "보통"}
-
-[출제 원칙]
-- 정답은 하나만 분명하게 맞아야 합니다. '모두 옳다', '정답 없음' 보기는 쓰지 않습니다.
-- 오답 4개는 학생이 실제로 헷갈리는 지점(아래 함정 유형)을 노려, 그럴듯하지만 분명히 틀리게 만듭니다.
-- 한 문항에 같은 함정 유형만 반복하지 말고, 문항 전체에 여러 유형이 고루 나오게 합니다.
-- 정답 위치(1~5)가 한쪽으로 몰리지 않게 섞습니다.
-
-{_FORMAT}"""
-
-
 def _table(bank: QuizBank) -> str:
     stream = io.StringIO()
     writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
@@ -124,6 +108,5 @@ def rows_from_text(text: str) -> list[tuple[object, ...]]:
 __all__ = [
     "bank_text",
     "completion_request",
-    "quiz_request",
     "rows_from_text",
 ]
