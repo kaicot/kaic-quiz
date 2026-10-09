@@ -5,6 +5,10 @@
 
 ## [미배포]
 
+## [1.0.0] - 2026-10-09
+
+첫 배포입니다. 자료 형식 1.
+
 ### 추가
 
 - 구글 폼 응답(CSV·xlsx) 읽기, 같은 학번의 두 번째 이후 응답 제외
@@ -42,4 +46,5 @@
   라이선스 고지(`THIRD_PARTY_NOTICES.txt`)
 - 라이선스: PolyForm Noncommercial 1.0.0(비상업적 이용만 허락)
 
-[미배포]: https://github.com/kaicot/kaic-quiz/commits/main
+[미배포]: https://github.com/kaicot/kaic-quiz/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/kaicot/kaic-quiz/releases/tag/v1.0.0

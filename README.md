@@ -2,8 +2,8 @@
 
 구글 폼 퀴즈 채점 · 학생별 피드백
 
-> **1.0.0 배포 준비 중입니다.** 배포 파일은 GitHub 릴리즈 페이지에 올라갑니다. 바뀐 점은
-> [CHANGELOG.md](CHANGELOG.md)에 남깁니다.
+> **내려받기:** [최신 릴리즈](https://github.com/kaicot/kaic-quiz/releases/latest)에서
+> `Quiz-Reporter-vX.Y.Z-windows.zip`을 받으세요. 바뀐 점은 [CHANGELOG.md](CHANGELOG.md)에 있습니다.
 
 구글 폼으로 본 5지선다 퀴즈의 응답 파일을 채점하고, 학생마다 "왜 틀렸는지"를 알려 주는 피드백 리포트를
 PDF로 만드는 Windows용 포터블 프로그램입니다.
@@ -36,7 +36,7 @@ PDF로 만드는 Windows용 포터블 프로그램입니다.
 
 Windows 10(1809 이상)·11, 64비트에서 씁니다(검증은 Windows 11에서 했습니다). Python은 필요 없습니다.
 
-1. 릴리즈 페이지에서 `Quiz-Reporter-vX.Y.Z-windows.zip`을 받습니다.
+1. [릴리즈 페이지](https://github.com/kaicot/kaic-quiz/releases/latest)에서 `Quiz-Reporter-vX.Y.Z-windows.zip`을 받습니다.
 2. 쓰기 가능한 전용 폴더(예: `D:\퀴즈리포터\`)에 풉니다. `C:\Program Files`나 바탕 화면 바로 아래,
    동기화 폴더는 피하세요.
 3. 폴더 안의 `Quiz Reporter.exe`를 실행합니다. EXE만 따로 옮기지 말고 폴더째 둡니다.
