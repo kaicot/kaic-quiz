@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from quiz_reporter.quiz.bank import QuizBank
 from quiz_reporter.quiz.grading import AnswerSheet, Selection, choice_numbers, valid_student_id
@@ -45,15 +45,14 @@ def students_from_selection(selection: Selection, sheet: AnswerSheet) -> tuple[S
             row.student_id if valid_student_id(row.student_id) else "",
             row.name,
             choice_numbers(row, sheet),
+            row.student_id,
         )
         for position, row in enumerate(selection.kept)
     ]
     ordered = sorted(
         raw, key=lambda s: (not s.name, s.name, not s.student_id, s.student_id, s.serial)
     )
-    return tuple(
-        Student(serial, s.student_id, s.name, s.choices) for serial, s in enumerate(ordered, 1)
-    )
+    return tuple(replace(s, serial=serial) for serial, s in enumerate(ordered, 1))
 
 
 def flagged_count(selection: Selection) -> int:

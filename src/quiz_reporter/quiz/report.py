@@ -26,9 +26,11 @@ TRAP_ADVICE = {
 @dataclass(frozen=True, slots=True)
 class Student:
     serial: int
+    # Blank when the typed ID is not 8 digits; ``typed_id`` keeps what was typed.
     student_id: str
     name: str
     choices: tuple[int | None, ...]
+    typed_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
