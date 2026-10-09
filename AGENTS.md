@@ -117,6 +117,7 @@ $env:QT_QPA_PLATFORM = "offscreen"
 ## 버전과 이력
 
 - [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다. 기능 추가는 minor, 고침은 patch입니다.
+  자료 형식(`FORMAT.json`의 `data_format`)이 바뀌어 예전 버전이 새 자료를 쓸 수 없게 되면 major입니다.
 - 버전 번호는 `pyproject.toml`과 `src/quiz_reporter/__init__.py` 두 곳에 있고 테스트가 일치를 검사합니다.
 - 커밋 메시지는 영어로, `feat:` `fix:` `docs:` `test:` `refactor:` `chore:` 앞머리를 붙입니다. 한 커밋에 한 가지 변경만 담습니다.
 - 사용자에게 보이는 변경은 커밋할 때 `CHANGELOG.md`의 `[미배포]` 칸에 함께 적습니다.

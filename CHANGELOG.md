@@ -34,3 +34,5 @@
 - 배포: Windows 포터블 ZIP(`Quiz Reporter.exe`와 `_internal\`), 새 아이콘, 버전 정보, 함께 쓰는 부품의
   라이선스 고지(`THIRD_PARTY_NOTICES.txt`)
 - 라이선스: PolyForm Noncommercial 1.0.0(비상업적 이용만 허락)
+
+[미배포]: https://github.com/kaicot/kaic-quiz/commits/main
