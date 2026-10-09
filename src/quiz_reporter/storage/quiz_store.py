@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from openpyxl.utils.exceptions import IllegalCharacterError
+
 import quiz_reporter
 from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
 from quiz_reporter.infrastructure.atomic_io import atomic_write_bytes, atomic_write_json
@@ -26,6 +28,7 @@ from quiz_reporter.quiz.bank import QuizBank, bank_workbook_bytes, parse_bank_by
 from quiz_reporter.quiz.grading import AnswerSheet
 from quiz_reporter.quiz.pipeline import Graded, grade
 from quiz_reporter.quiz.responses import KST, FormResponses, read_form_responses
+from quiz_reporter.quiz.result_book import RESULT_FILENAME, result_workbook_bytes
 from quiz_reporter.quiz.students import GradedQuiz, safe_filename
 from quiz_reporter.storage.quiz_info import (
     BANK_FILENAME,
@@ -299,7 +302,7 @@ class QuizStore:
         parked = data / f"{PARKED_PREFIX}{folder}"
         try:
             for item in path.value.iterdir():
-                if item.name in {REPORT_DIRNAME, BANK_FILENAME, INFO_FILENAME}:
+                if item.name in {REPORT_DIRNAME, BANK_FILENAME, RESULT_FILENAME, INFO_FILENAME}:
                     continue
                 if item.is_dir():
                     shutil.copytree(item, staging.value / item.name)
@@ -413,9 +416,17 @@ class QuizStore:
         return candidate
 
     def _write(self, folder: Path, info: QuizInfo, name: str, graded: Graded) -> Result[None]:
-        bank = atomic_write_bytes(folder / BANK_FILENAME, bank_workbook_bytes(graded.bank))
+        try:
+            bank_bytes = bank_workbook_bytes(graded.bank)
+            book_bytes = result_workbook_bytes(graded, info.name)
+        except (ValueError, IllegalCharacterError) as exc:
+            return _fail(f"엑셀 파일을 만들지 못했습니다. ({exc})")
+        bank = atomic_write_bytes(folder / BANK_FILENAME, bank_bytes)
         if isinstance(bank, Err):
             return bank
+        book = atomic_write_bytes(folder / RESULT_FILENAME, book_bytes)
+        if isinstance(book, Err):
+            return book
         reports = self._writer(graded_quiz(info, name, graded), folder / REPORT_DIRNAME)
         if isinstance(reports, Err):
             return reports

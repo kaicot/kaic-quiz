@@ -9,7 +9,6 @@ from PySide6.QtCore import QMarginsF, QSizeF
 from PySide6.QtGui import QFont, QPageLayout, QPageSize, QPdfWriter, QTextDocument
 
 from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
-from quiz_reporter.quiz.analysis_book import analysis_workbook_bytes
 from quiz_reporter.quiz.report import StudentReport, build_reports, report_html, reports_html
 from quiz_reporter.quiz.students import GradedQuiz, safe_filename
 
@@ -69,11 +68,10 @@ class QuizReportSummary:
     students: int
     detailed: bool
     bundle: str
-    analysis: str
 
 
 def write_quiz_reports(quiz: GradedQuiz, folder: Path) -> Result[QuizReportSummary]:
-    """Write the bundle, one PDF per student and the analysis workbook into ``folder``."""
+    """Write the bundle and one PDF per student into ``folder``."""
     if not quiz.students:
         return Err(
             (
@@ -85,12 +83,10 @@ def write_quiz_reports(quiz: GradedQuiz, folder: Path) -> Result[QuizReportSumma
                 ),
             )
         )
-    reports, summary = build_reports(quiz.bank, quiz.students)
+    reports, _ = build_reports(quiz.bank, quiz.students)
     date = (quiz.graded_at or "")[:10]
     try:
         bundle, _ = write_report_pdfs(reports, quiz.exam_name, date, folder)
-        analysis = folder / "퀴즈분석.xlsx"
-        analysis.write_bytes(analysis_workbook_bytes(quiz.bank, reports, summary, quiz.excluded))
     except OSError as exc:
         return Err(
             (
@@ -102,9 +98,7 @@ def write_quiz_reports(quiz: GradedQuiz, folder: Path) -> Result[QuizReportSumma
                 ),
             )
         )
-    return Ok(
-        QuizReportSummary(str(folder), len(reports), quiz.bank.complete, str(bundle), str(analysis))
-    )
+    return Ok(QuizReportSummary(str(folder), len(reports), quiz.bank.complete, str(bundle)))
 
 
 __all__ = ["QuizReportSummary", "write_quiz_reports", "write_report_pdfs"]

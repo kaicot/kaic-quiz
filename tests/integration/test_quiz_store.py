@@ -88,6 +88,7 @@ def test_a_new_quiz_keeps_its_originals_and_lists_its_summary(setup):
         "리포트",
         "문항표.xlsx",
         "응답원본.csv",
+        "채점결과.xlsx",
         "퀴즈정보.json",
     ]
     assert (folder / "응답원본.csv").read_bytes() == csv.read_bytes()
@@ -239,6 +240,7 @@ def test_a_new_bank_rebuilds_the_reports_and_keeps_the_originals(setup):
     folder = created.value.path
     (folder / "리포트" / "개별" / "옛것.pdf").write_bytes(b"old")
     (folder / "메모.txt").write_text("사용자가 둔 파일", encoding="utf-8")
+    book_before = (folder / "채점결과.xlsx").read_bytes()
 
     rebuilt = store.replace_bank(created.value.folder, full)
 
@@ -249,6 +251,7 @@ def test_a_new_bank_rebuilds_the_reports_and_keeps_the_originals(setup):
     assert rebuilt.value.info.graded_at > created.value.info.graded_at
     assert writer.calls[-1].bank == full
     assert not (folder / "리포트" / "개별" / "옛것.pdf").exists()
+    assert (folder / "채점결과.xlsx").read_bytes() != book_before
     assert len(list((folder / "리포트" / "개별").iterdir())) == 4
     assert (folder / "메모.txt").read_text(encoding="utf-8") == "사용자가 둔 파일"
     assert (folder / "응답원본.csv").read_bytes() == csv.read_bytes()

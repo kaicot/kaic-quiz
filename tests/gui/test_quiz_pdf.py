@@ -1,10 +1,8 @@
-"""Reports print to one bundle, one PDF per student and the analysis workbook."""
+"""Reports print to one bundle and one PDF per student; the workbooks live elsewhere."""
 
 from __future__ import annotations
 
 from pathlib import Path
-
-import openpyxl
 
 from quiz_reporter.errors import Err, Ok
 from quiz_reporter.quiz.grading import select, sheet_from_bank, suggest_cutoff
@@ -34,7 +32,7 @@ def _quiz(tmp_path: Path) -> GradedQuiz:
     )
 
 
-def test_every_student_gets_a_pdf_and_the_bundle_and_analysis_are_written(qapp, tmp_path):
+def test_every_student_gets_a_pdf_and_the_bundle_is_written(qapp, tmp_path):
     exported = write_quiz_reports(_quiz(tmp_path), tmp_path / "리포트")
 
     assert isinstance(exported, Ok), exported
@@ -50,11 +48,7 @@ def test_every_student_gets_a_pdf_and_the_bundle_and_analysis_are_written(qapp, 
         "003_20260003_마바.pdf",
         "004_학번확인필요_사아.pdf",
     ]
-    workbook = openpyxl.load_workbook(summary.analysis, read_only=True)
-    try:
-        assert workbook.sheetnames
-    finally:
-        workbook.close()
+    assert sorted(path.name for path in folder.iterdir()) == ["개별", "전체(인쇄용).pdf"]
 
 
 def test_a_quiz_without_students_is_refused(qapp, tmp_path):
