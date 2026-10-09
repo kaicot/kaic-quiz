@@ -13,8 +13,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QDateTime, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QApplication,
-    QCheckBox,
+    QComboBox,
     QDateTimeEdit,
     QFileDialog,
     QFrame,
@@ -44,11 +45,15 @@ from quiz_reporter.quiz.grading import (
     sheet_from_bank,
     sheet_from_form,
     sheet_from_scores,
+    sittings,
     suggest_cutoff,
 )
 from quiz_reporter.quiz.prompts import bank_text, completion_request, rows_from_text
 from quiz_reporter.quiz.responses import KST, FormResponses, read_form_responses
 from quiz_reporter.ui.theme import set_role
+
+# The last two cutoff choices: every answer, or a time the teacher types.
+ALL_ANSWERS, TYPED_TIME = "all", "typed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,19 +175,28 @@ class QuizPage(QWidget):
         name_row.addWidget(self.name_edit, 1)
         inner.addLayout(name_row)
         cutoff_row = QHBoxLayout()
-        self.cutoff_check = QCheckBox("이 시각 뒤 응답은 제외 (나중에 복습으로 다시 푼 것)", panel)
+        cutoff_label = QLabel("채점할 응답", panel)
+        cutoff_label.setMinimumWidth(70)
+        self.cutoff_combo = QComboBox(panel)
+        self.cutoff_combo.setMinimumWidth(300)
+        # Typed only: the arrows stepped the year first, which was never what anyone wanted.
         self.cutoff_edit = QDateTimeEdit(panel)
         self.cutoff_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.cutoff_edit.setCalendarPopup(False)
+        self.cutoff_edit.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.cutoff_edit.setToolTip("이 시각까지 낸 응답만 채점합니다. 숫자를 눌러 고치세요.")
         self.cutoff_edit.setDateTime(QDateTime.currentDateTime())
-        cutoff_row.addWidget(self.cutoff_check)
+        self.cutoff_edit.hide()
+        cutoff_row.addWidget(cutoff_label)
+        cutoff_row.addWidget(self.cutoff_combo)
         cutoff_row.addWidget(self.cutoff_edit)
         cutoff_row.addStretch()
         inner.addLayout(cutoff_row)
+        self._cutoff_choices: list[datetime | str] = []
+        self._set_cutoff_choices(None)
         self.cutoff_hint = QLabel(
-            "마감은 프로그램이 제안합니다: 응답 시각을 30분 넘게 비는 틈으로 나눠, 응답이 가장 많이"
-            " 몰린 시간대(수업 시간)의 마지막 응답 시각입니다. 그 뒤 응답(다음 날 복습 등)은 빠집니다."
-            " 시간대가 하나뿐이면 제안하지 않습니다. 시각은 직접 고칠 수 있고, 체크를 끄면 모두 채점합니다.",
+            "응답 시각이 30분 넘게 비면 다른 시간대로 봅니다. 응답이 가장 많은 시간대(수업 시간)까지를"
+            " 추천하고, 그 뒤 응답(다음 날 복습 등)은 빠집니다.",
             panel,
         )
         self.cutoff_hint.setProperty("role", "hint")
@@ -298,7 +312,7 @@ class QuizPage(QWidget):
         self.bank_paste_button.clicked.connect(self._paste_bank)
         self.copy_complete_button.clicked.connect(self._copy_completion_prompt)
         self.responses_button.clicked.connect(self._pick_responses)
-        self.cutoff_check.toggled.connect(lambda _: self._refresh())
+        self.cutoff_combo.currentIndexChanged.connect(self._cutoff_chosen)
         self.cutoff_edit.dateTimeChanged.connect(lambda _: self._refresh())
         self.run_button.clicked.connect(self._run)
         self._refresh()
@@ -503,6 +517,7 @@ class QuizPage(QWidget):
             self._responses = None
             self._responses_path = None
             self.xlsx_notice.hide()
+            self._set_cutoff_choices(None)
             self._refresh()
             return
         responses = result.value
@@ -512,22 +527,7 @@ class QuizPage(QWidget):
         stem = Path(path).stem.replace("(응답)", "").strip()
         if not self.name_edit.text().strip():
             self.name_edit.setText(stem)
-        cutoff = suggest_cutoff(responses)
-        blocked = self.cutoff_check.blockSignals(True)
-        self.cutoff_check.setChecked(cutoff is not None)
-        self.cutoff_check.blockSignals(blocked)
-        moment = cutoff or max(
-            (row.submitted_at for row in responses.rows if row.submitted_at), default=None
-        )
-        if moment is not None:
-            local = moment.astimezone(KST)
-            blocked = self.cutoff_edit.blockSignals(True)
-            self.cutoff_edit.setDateTime(
-                QDateTime(
-                    local.year, local.month, local.day, local.hour, local.minute, local.second
-                )
-            )
-            self.cutoff_edit.blockSignals(blocked)
+        self._set_cutoff_choices(responses)
         kind = (
             "문항별 정답 여부 있음"
             if responses.has_item_scores
@@ -540,8 +540,62 @@ class QuizPage(QWidget):
             self._build_skeleton()
         self._refresh()
 
+    def _set_cutoff_choices(self, responses: FormResponses | None) -> None:
+        """One choice per sitting (answers up to its end), then all answers, then a typed time."""
+        combo = self.cutoff_combo
+        blocked = combo.blockSignals(True)
+        combo.clear()
+        self._cutoff_choices = []
+        self.cutoff_edit.hide()
+        if responses is None:
+            combo.addItem("응답 파일을 고르면 시간대가 나옵니다")
+            combo.setEnabled(False)
+            combo.blockSignals(blocked)
+            return
+        found = sittings(responses)
+        suggested = suggest_cutoff(responses)
+        current = len(found) - 1  # all answers
+        for index, sitting in enumerate(found[:-1]):
+            kept = len(select(responses, sitting.end).kept)
+            label = f"{sitting.end.astimezone(KST):%m/%d %H:%M}까지 낸 응답 ({kept}명)"
+            if sitting.end == suggested:
+                label += " · 추천"
+                current = index
+            combo.addItem(label)
+            self._cutoff_choices.append(sitting.end)
+        combo.addItem(f"모든 응답 ({len(select(responses, None).kept)}명)")
+        self._cutoff_choices.append(ALL_ANSWERS)
+        combo.addItem("직접 시각 입력…")
+        self._cutoff_choices.append(TYPED_TIME)
+        combo.setCurrentIndex(max(current, 0))
+        combo.setEnabled(True)
+        combo.blockSignals(blocked)
+        last = found[-1].end if found else None
+        self._show_cutoff(suggested or last)
+
+    def _show_cutoff(self, moment: datetime | None) -> None:
+        if moment is None:
+            return
+        local = moment.astimezone(KST)
+        blocked = self.cutoff_edit.blockSignals(True)
+        self.cutoff_edit.setDateTime(
+            QDateTime(local.year, local.month, local.day, local.hour, local.minute, local.second)
+        )
+        self.cutoff_edit.blockSignals(blocked)
+
+    def _cutoff_chosen(self, index: int) -> None:
+        choice = self._cutoff_choices[index] if 0 <= index < len(self._cutoff_choices) else None
+        if isinstance(choice, datetime):
+            self._show_cutoff(choice)
+        self.cutoff_edit.setVisible(choice == TYPED_TIME)
+        self._refresh()
+
     def _cutoff(self) -> datetime | None:
-        if not self.cutoff_check.isChecked():
+        index = self.cutoff_combo.currentIndex()
+        choice = self._cutoff_choices[index] if 0 <= index < len(self._cutoff_choices) else None
+        if isinstance(choice, datetime):
+            return choice
+        if choice != TYPED_TIME:
             return None
         value = self.cutoff_edit.dateTime()
         date, time = value.date(), value.time()
@@ -635,7 +689,6 @@ class QuizPage(QWidget):
         idle = not self._busy
         self.copy_complete_button.setEnabled(self._bank is not None or bool(self._bank_problems))
         self.form_button.setEnabled(idle)
-        self.cutoff_edit.setEnabled(self.cutoff_check.isChecked())
         selection = self.current_selection()
         self.selection_label.setText(
             "응답 파일을 고르면 여기에 채점할 학생 수가 나옵니다."

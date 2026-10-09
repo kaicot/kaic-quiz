@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QAbstractSpinBox, QPushButton
 
 from quiz_reporter.errors import Ok
 from quiz_reporter.quiz.bank import bank_workbook_bytes
@@ -25,7 +25,7 @@ def test_responses_suggest_a_cutoff_and_describe_the_selection(qtbot, tmp_path):
     page = _page(qtbot, tmp_path)
 
     assert page.name_edit.text() == "생리 퀴즈"
-    assert page.cutoff_check.isChecked()
+    assert page.cutoff_combo.currentText().endswith("까지 낸 응답 (4명) · 추천")
     text = page.selection_label.text()
     assert "채점할 응답 4명" in text
     assert "마감 뒤 1건 제외" in text
@@ -33,7 +33,7 @@ def test_responses_suggest_a_cutoff_and_describe_the_selection(qtbot, tmp_path):
     assert "8자리 숫자가 아닌 응답 1건" in text
     assert page.run_button.isEnabled()
 
-    page.cutoff_check.setChecked(False)
+    page.cutoff_combo.setCurrentIndex(page.cutoff_combo.findText("모든 응답 (5명)"))
     assert "채점할 응답 5명" in page.selection_label.text()
 
 
@@ -153,12 +153,25 @@ def test_grading_from_csv_scores_alone_is_not_numbered(qtbot, tmp_path):
     assert requests[0].sheet.from_responses
 
 
-def test_the_cutoff_has_no_calendar_and_shows_seconds(qtbot, tmp_path):
+def test_the_cutoff_is_chosen_from_the_sittings_or_typed_without_arrows(qtbot, tmp_path):
     page = _page(qtbot, tmp_path)
+    combo = page.cutoff_combo
 
-    assert not page.cutoff_edit.calendarPopup()
-    assert page.cutoff_edit.displayFormat().endswith("ss")
+    choices = [combo.itemText(index) for index in range(combo.count())]
+    assert len(choices) == 3 and choices[1:] == ["모든 응답 (5명)", "직접 시각 입력…"]
     assert "30분" in page.cutoff_hint.text()
+    assert not page.cutoff_edit.isVisibleTo(page)
+    suggested = page._cutoff()
+    assert suggested is not None
+
+    combo.setCurrentIndex(2)
+    edit = page.cutoff_edit
+    assert edit.isVisibleTo(page)
+    assert edit.buttonSymbols() == QAbstractSpinBox.ButtonSymbols.NoButtons
+    assert not edit.calendarPopup() and edit.displayFormat().endswith("ss")
+    # Typing starts from the suggested time, so the choice does not change what is graded.
+    assert page._cutoff() == suggested
+    assert "채점할 응답 4명" in page.selection_label.text()
 
 
 def test_a_spreadsheet_response_file_says_answers_need_extra_work(qtbot, tmp_path):
