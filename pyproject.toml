@@ -7,6 +7,9 @@ name = "quiz-reporter"
 version = "1.0.0"
 description = "퀴즈 리포터: 구글 폼 퀴즈 채점 · 학생별 피드백"
 requires-python = ">=3.12,<3.13"
+license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE.md"]
+authors = [{ name = "조승현 (Cho, Seung-Hyun)", email = "kaic21@gmail.com" }]
 dependencies = [
     "PySide6==6.11.2",
     "PySide6_Essentials==6.11.2",
@@ -31,6 +34,9 @@ build = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
+
+[tool.setuptools.package-data]
+quiz_reporter = ["resources/*.svg"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
