@@ -15,6 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import quiz_reporter
 from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
@@ -47,7 +48,7 @@ _LOCKED = (
 )
 
 # Writes the report files of a graded quiz into the given folder.
-ReportWriter = Callable[[GradedQuiz, Path], Result[object]]
+ReportWriter = Callable[[GradedQuiz, Path], Result[Any]]
 
 
 @dataclass(frozen=True, slots=True)

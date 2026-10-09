@@ -51,15 +51,16 @@ from quiz_reporter.quiz.grading import (
 )
 from quiz_reporter.quiz.prompts import bank_text, completion_request, quiz_request, rows_from_text
 from quiz_reporter.quiz.responses import KST, FormResponses, read_form_responses
+from quiz_reporter.ui.theme import set_role
 
 
 @dataclass(frozen=True, slots=True)
 class QuizRunRequest:
     exam_name: str
-    selection: Selection
+    responses_path: Path
+    cutoff: datetime | None
     sheet: AnswerSheet
     bank: QuizBank
-    destination: str
 
 
 def _step(
@@ -107,9 +108,7 @@ def _panel(parent: QWidget, title: str) -> tuple[QFrame, QVBoxLayout]:
 
 def _set_badge(badge: QLabel, text: str, role: str) -> None:
     badge.setText(text)
-    badge.setProperty("role", role)
-    badge.style().unpolish(badge)
-    badge.style().polish(badge)
+    set_role(badge, role)
 
 
 class QuizPage(QWidget):
@@ -123,6 +122,7 @@ class QuizPage(QWidget):
         self._bank_problems: str = ""
         self._last_bank_text: str | None = None
         self._responses: FormResponses | None = None
+        self._responses_path: Path | None = None
         self._form: FormPage | None = None
         self._write_enabled = True
         self._busy = False
@@ -132,7 +132,7 @@ class QuizPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(16)
-        title = QLabel("퀴즈 채점", self)
+        title = QLabel("새 퀴즈 채점", self)
         title.setObjectName("quizPageTitle")
         root.addWidget(title)
         subtitle = QLabel(
@@ -165,7 +165,7 @@ class QuizPage(QWidget):
         name_label = QLabel("퀴즈 이름", panel)
         name_label.setMinimumWidth(70)
         self.name_edit = QLineEdit(panel)
-        self.name_edit.setPlaceholderText("시험 관리에 이 이름으로 남습니다")
+        self.name_edit.setPlaceholderText("퀴즈 목록에 이 이름으로 남습니다")
         name_row.addWidget(name_label)
         name_row.addWidget(self.name_edit, 1)
         inner.addLayout(name_row)
@@ -285,8 +285,8 @@ class QuizPage(QWidget):
             self,
             3,
             "채점하고 리포트 만들기",
-            "저장할 폴더를 고르면 결과가 시험 관리에 남고, 그 폴더에 인쇄용 묶음 PDF · 학생별 PDF ·"
-            " 퀴즈분석 엑셀이 생깁니다.",
+            "누르면 퀴즈가 퀴즈 목록에 저장되고, 인쇄용 묶음 PDF · 학생별 PDF · 퀴즈분석 엑셀이"
+            " 만들어집니다. 저장할 폴더는 고르지 않아도 됩니다.",
         )
         run_row = QHBoxLayout()
         self.run_button = QPushButton("채점하고 리포트 만들기", card)
@@ -301,11 +301,6 @@ class QuizPage(QWidget):
         layout.addWidget(self.status_label)
         root.addWidget(card)
         root.addStretch()
-        # Secondary buttons share the bordered look of the 시험 관리 buttons.
-        for button in self.findChildren(QPushButton):
-            if button is not self.run_button:
-                button.setProperty("quizAction", True)
-
         self.copy_quiz_button.clicked.connect(self._copy_quiz_request)
         self.form_button.clicked.connect(self._request_form)
         self.bank_file_button.clicked.connect(self._load_bank_file)
@@ -389,7 +384,7 @@ class QuizPage(QWidget):
         questions = tuple((question.title, question.options) for question in form.questions)
         sheet = sheet_from_form(responses, questions)
         if isinstance(sheet, Err):
-            self._show_problems(problems_text(sheet.errors))
+            self.show_problems(problems_text(sheet.errors))
             return
         skeleton = bank_from_sheet(responses, sheet.value)
         self._set_bank(skeleton, "폼에서 만든 문항표 틀")
@@ -415,7 +410,7 @@ class QuizPage(QWidget):
     def paste_bank(self, text: str) -> None:
         rows = rows_from_text(text)
         if not rows:
-            self._show_problems(
+            self.show_problems(
                 "복사한 내용에서 표를 찾지 못했습니다. AI가 준 표 전체를 복사하세요."
             )
             return
@@ -424,7 +419,7 @@ class QuizPage(QWidget):
 
     def _accept_bank(self, result: object, label: str) -> None:
         if isinstance(result, Err):
-            self._show_problems(problems_text(result.errors))
+            self.show_problems(problems_text(result.errors))
             return
         if isinstance(result, Ok) and isinstance(result.value, QuizBank):
             self._set_bank(result.value, label)
@@ -459,7 +454,7 @@ class QuizPage(QWidget):
         self.bank_label.setText(f"문항표: {label}, {len(bank.items)}문항 · {summary}")
         self._refresh()
 
-    def _show_problems(self, text: str) -> None:
+    def show_problems(self, text: str) -> None:
         self._check_failed = True
         self._bank_problems = text
         self.problems_box.setPlainText(text)
@@ -514,10 +509,12 @@ class QuizPage(QWidget):
         if isinstance(result, Err):
             self.responses_label.setText(problems_text(result.errors))
             self._responses = None
+            self._responses_path = None
             self._refresh()
             return
         responses = result.value
         self._responses = responses
+        self._responses_path = Path(path)
         stem = Path(path).stem.replace("(응답)", "").strip()
         if not self.name_edit.text().strip():
             self.name_edit.setText(stem)
@@ -603,19 +600,18 @@ class QuizPage(QWidget):
         return scored.value, bank_from_sheet(responses, scored.value)
 
     def _run(self) -> None:
-        selection = self.current_selection()
-        if selection is None:
+        if self._responses is None or self._responses_path is None:
+            self.set_status("먼저 ① 응답 파일을 고르세요.")
             return
         prepared = self.answer_sheet()
         if isinstance(prepared, Err):
-            self._show_problems(problems_text(prepared.errors))
+            self.show_problems(problems_text(prepared.errors))
             return
         sheet, bank = prepared
         name = self.name_edit.text().strip() or "퀴즈"
-        folder = QFileDialog.getExistingDirectory(self, "리포트를 저장할 폴더 선택")
-        if not folder:
-            return
-        self.run_requested.emit(QuizRunRequest(name, selection, sheet, bank, folder))
+        self.run_requested.emit(
+            QuizRunRequest(name, self._responses_path, self._cutoff(), sheet, bank)
+        )
 
     def _update_badges(self, selection: Selection | None) -> None:
         if selection is None:

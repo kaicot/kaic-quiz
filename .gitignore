@@ -90,3 +90,6 @@ logs/
 # Local release evidence and handoff material
 artifacts/
 *.local.md
+
+# Single-instance lock beside the program
+/.quiz-reporter.lock

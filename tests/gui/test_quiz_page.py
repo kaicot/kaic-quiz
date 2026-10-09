@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFileDialog
-
 from quiz_reporter.errors import Ok
 from quiz_reporter.quiz.bank import bank_workbook_bytes
 from quiz_reporter.quiz.form_page import FormPage, FormQuestion
@@ -89,9 +87,8 @@ def test_the_form_page_and_csv_make_a_skeleton_with_answers(qtbot, tmp_path):
     assert "빈 칸이 있어" in page.bank_label.text()
 
 
-def test_the_spreadsheet_without_a_bank_explains_what_is_missing(qtbot, tmp_path, monkeypatch):
+def test_the_spreadsheet_without_a_bank_explains_what_is_missing(qtbot, tmp_path):
     page = _page(qtbot, tmp_path, form_xlsx(), "응답.xlsx")
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: str(tmp_path))
     requests = []
     page.run_requested.connect(requests.append)
 
@@ -101,12 +98,9 @@ def test_the_spreadsheet_without_a_bank_explains_what_is_missing(qtbot, tmp_path
     assert "문항별 정답 여부가 없습니다" in page.problems_box.toPlainText()
 
 
-def test_running_asks_for_a_folder_and_hands_everything_to_the_controller(
-    qtbot, tmp_path, monkeypatch
-):
+def test_running_hands_the_file_cutoff_and_bank_to_the_controller(qtbot, tmp_path):
     page = _page(qtbot, tmp_path)
     page.paste_bank(bank_text(full_bank()))
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: "D:/out")
     requests = []
     page.run_requested.connect(requests.append)
 
@@ -115,8 +109,13 @@ def test_running_asks_for_a_folder_and_hands_everything_to_the_controller(
     assert len(requests) == 1
     request = requests[0]
     assert isinstance(request, QuizRunRequest)
-    assert (request.exam_name, request.destination) == ("생리 퀴즈", "D:/out")
-    assert len(request.selection.kept) == 4 and request.bank == full_bank()
+    assert request.exam_name == "생리 퀴즈"
+    assert request.responses_path == tmp_path / "생리 퀴즈(응답).csv"
+    assert request.cutoff is not None and (request.cutoff.hour, request.cutoff.minute) == (
+        13,
+        15,
+    )
+    assert request.bank == full_bank()
 
 
 def test_running_is_blocked_without_write_access(qtbot, tmp_path):
