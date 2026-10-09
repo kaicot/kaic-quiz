@@ -439,3 +439,73 @@ def test_control_characters_in_a_name_become_underscores(setup):
 
     assert isinstance(created, Ok), created
     assert created.value.folder.endswith("_퀴즈_1")
+
+
+def test_csv_score_numbering_is_recorded_and_survives_a_completed_bank(setup):
+    from openpyxl import load_workbook
+
+    store, writer, csv, _ = setup
+    responses, cutoff = _cutoff(csv)
+    sheet = sheet_from_scores(responses).value
+    score_bank = bank_from_sheet(responses, sheet)
+
+    created = store.create("기본형", csv, cutoff, score_bank, sheet)
+
+    assert isinstance(created, Ok) and created.value.info is not None
+    assert not created.value.info.numbered
+    assert writer.calls[-1].bank.response_order
+    book = load_workbook(created.value.path / "채점결과.xlsx", read_only=True)
+    note = book["채점결과"]["A3"].value
+    book.close()
+    assert note.startswith("보기 번호는 폼 순서가 아니라")
+
+    # The same options with an explanation filled in: still the responses' numbering.
+    first = score_bank.items[0]
+    filled = first.__class__(
+        first.number, first.unit, first.question, first.options, first.answer, "해설",
+        first.reasons, first.traps, first.review,
+    )  # fmt: skip
+    kept = store.replace_bank(created.value.folder, QuizBank((filled, *score_bank.items[1:])))
+    assert isinstance(kept, Ok) and kept.value.info is not None
+    assert not kept.value.info.numbered
+
+    # A 문항표 in the form's order (as from the AI or the form page): numbers become the form's.
+    fixed = store.replace_bank(created.value.folder, full_bank())
+    assert isinstance(fixed, Ok) and fixed.value.info is not None
+    assert fixed.value.info.numbered
+    assert not writer.calls[-1].bank.response_order
+
+
+def test_the_saved_response_order_bank_keeps_its_order_when_reused(setup, tmp_path):
+    from quiz_reporter.quiz.bank import parse_bank
+
+    store, writer, csv, _ = setup
+    responses, cutoff = _cutoff(csv)
+    sheet = sheet_from_scores(responses).value
+    first = store.create("1반", csv, cutoff, bank_from_sheet(responses, sheet), sheet)
+    assert isinstance(first, Ok)
+
+    # The 문항표.xlsx of that quiz, loaded for another section of the same form.
+    reused = parse_bank(str(first.value.path / "문항표.xlsx"), require_feedback=False)
+    assert isinstance(reused, Ok) and reused.value.response_order
+    second = store.create("2반", csv, cutoff, reused.value)
+
+    assert isinstance(second, Ok) and second.value.info is not None
+    assert not second.value.info.numbered
+    assert writer.calls[-1].bank.response_order
+
+
+def test_an_unreadable_saved_bank_keeps_hiding_numbers(setup):
+    store, _, csv, _ = setup
+    responses, cutoff = _cutoff(csv)
+    sheet = sheet_from_scores(responses).value
+    score_bank = bank_from_sheet(responses, sheet)
+    created = store.create("기본형", csv, cutoff, score_bank, sheet)
+    assert isinstance(created, Ok)
+    (created.value.path / "문항표.xlsx").write_bytes(b"not a workbook")
+    pasted = QuizBank(score_bank.items)  # pasted text: the order marker is lost
+
+    rebuilt = store.replace_bank(created.value.folder, pasted)
+
+    assert isinstance(rebuilt, Ok) and rebuilt.value.info is not None
+    assert not rebuilt.value.info.numbered

@@ -24,7 +24,7 @@ from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
 from quiz_reporter.infrastructure.atomic_io import atomic_write_bytes, atomic_write_json
 from quiz_reporter.infrastructure.io_retry import retry_copy2, retry_io
 from quiz_reporter.infrastructure.paths import ManagedPaths, validate_component
-from quiz_reporter.quiz.bank import QuizBank, bank_workbook_bytes, parse_bank_bytes
+from quiz_reporter.quiz.bank import QuizBank, bank_workbook_bytes, normalize, parse_bank_bytes
 from quiz_reporter.quiz.grading import AnswerSheet
 from quiz_reporter.quiz.pipeline import Graded, grade
 from quiz_reporter.quiz.responses import KST, FormResponses, read_form_responses
@@ -32,9 +32,11 @@ from quiz_reporter.quiz.result_book import RESULT_FILENAME, result_workbook_byte
 from quiz_reporter.quiz.students import GradedQuiz, safe_filename
 from quiz_reporter.storage.quiz_info import (
     BANK_FILENAME,
+    FORM_ORDER,
     INFO_FILENAME,
     INFO_FORMAT,
     REPORT_DIRNAME,
+    RESPONSE_ORDER,
     RESPONSE_SUFFIXES,
     RESPONSES_STEM,
     QuizInfo,
@@ -193,6 +195,29 @@ class QuizStore:
             return path
         return self._open_at(path.value)
 
+    @staticmethod
+    def _keep_response_order(path: Path, bank: QuizBank) -> QuizBank:
+        """A pasted copy of a response-order 문항표 (same options, same order) stays one.
+
+        Pasted text loses the 설명 sheet's marker, so compare with the saved 문항표. When that
+        can't be read, keep hiding the numbers: wrong numbers are worse than none.
+        """
+        if bank.response_order:
+            return bank
+        info = read_quiz_info(path)
+        if isinstance(info, Err) or info.value.numbered:
+            return bank
+        try:
+            saved = parse_bank_bytes((path / BANK_FILENAME).read_bytes(), require_feedback=False)
+        except OSError:
+            return replace(bank, response_order=True)
+        if isinstance(saved, Err):
+            return replace(bank, response_order=True)
+        same = [tuple(map(normalize, item.options)) for item in saved.value.items] == [
+            tuple(map(normalize, item.options)) for item in bank.items
+        ]
+        return replace(bank, response_order=True) if same else bank
+
     def check_folder(self, path: Path) -> Result[OpenedQuiz]:
         """Grade a quiz folder anywhere (such as one being imported) without moving it."""
         return self._open_at(path)
@@ -268,6 +293,7 @@ class QuizStore:
                 responses_path.name,
                 copied.name,
                 cutoff,
+                RESPONSE_ORDER if bank.response_order else FORM_ORDER,
                 _summary(graded.value),
             )
             written = self._write(staging.value, info, folder, graded.value)
@@ -285,12 +311,14 @@ class QuizStore:
         path = self._paths.data_path(folder)
         if isinstance(path, Err):
             return path
+        bank = self._keep_response_order(path.value, bank)
         current = self._open_at(path.value, bank)
         if isinstance(current, Err):
             return current
         opened = current.value
         info = replace(
             opened.info,
+            option_order=RESPONSE_ORDER if bank.response_order else FORM_ORDER,
             app_version=self._version,
             graded_at=self._clock(),
             summary=_summary(opened.graded),

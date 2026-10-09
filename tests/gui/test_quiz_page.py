@@ -116,6 +116,7 @@ def test_running_hands_the_file_cutoff_and_bank_to_the_controller(qtbot, tmp_pat
         15,
     )
     assert request.bank == full_bank()
+    assert not request.bank.response_order  # a 문항표 gives the form's option numbers
 
 
 def test_running_is_blocked_without_write_access(qtbot, tmp_path):
@@ -135,3 +136,14 @@ def test_form_errors_are_shown(qtbot, tmp_path):
 
     assert "구글 폼 주소가 아닙니다" in page.status_label.text()
     assert isinstance(Ok(1), Ok)
+
+
+def test_grading_from_csv_scores_alone_is_not_numbered(qtbot, tmp_path):
+    page = _page(qtbot, tmp_path)
+    requests = []
+    page.run_requested.connect(requests.append)
+
+    page.run_button.click()
+
+    assert len(requests) == 1 and requests[0].bank.response_order
+    assert requests[0].sheet.from_responses

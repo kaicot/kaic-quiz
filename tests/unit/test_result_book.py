@@ -181,15 +181,18 @@ def test_a_question_without_a_known_answer_is_not_coloured_or_graded(tmp_path):
     graded = _graded(tmp_path, rows, cutoff=False, bank=bank)
 
     sheet = _book(graded)["채점결과"]
+    # A bank from CSV scores numbers options by the responses, so a note row comes first.
+    assert bank.response_order
+    students = range(5, 9)
 
-    assert [sheet.cell(line, 5).value for line in range(4, 8)] == [2, 2, 2, 2]
-    assert [sheet.cell(line, 4).value for line in range(4, 8)] == [2, 0, 0, 2]
-    shown = [sheet.cell(line, 8).value for line in range(4, 8)]
+    assert [sheet.cell(line, 5).value for line in students] == [2, 2, 2, 2]
+    assert [sheet.cell(line, 4).value for line in students] == [2, 0, 0, 2]
+    shown = [sheet.cell(line, 8).value for line in students]
     assert shown == [1, 1, 2, 2]
-    assert [_rgb(sheet.cell(line, 8)) for line in range(4, 8)] == [None] * 4
-    assert sheet.cell(9, 8).value is None
+    assert [_rgb(sheet.cell(line, 8)) for line in students] == [None] * 4
     assert sheet.cell(10, 8).value is None
-    assert sheet.cell(10, 6).value == graded.summary.correct_rate[0]
+    assert sheet.cell(11, 8).value is None
+    assert sheet.cell(11, 6).value == graded.summary.correct_rate[0]
 
 
 def test_the_analysis_sheet_keeps_the_trap_analysis(graded):
@@ -283,3 +286,20 @@ def test_answers_are_plain_numbers_for_later_processing(sheet):
         for cell in row:
             assert cell.value is None or (isinstance(cell.value, int) and 1 <= cell.value <= 5)
             assert cell.data_type == "n"
+
+
+def test_a_response_order_quiz_says_so_above_both_headers(tmp_path):
+    from quiz_reporter.quiz.grading import bank_from_sheet, sheet_from_scores
+    from quiz_reporter.quiz.result_book import ORDER_NOTE
+
+    responses = _responses(tmp_path)
+    bank = bank_from_sheet(responses, sheet_from_scores(responses).value)
+    book = _book(_graded(tmp_path, bank=bank))
+
+    result, analysis = book["채점결과"], book["문항 분석"]
+    assert result["A3"].value == ORDER_NOTE
+    assert result["A4"].value == "순번"
+    assert result.freeze_panes == "D5"
+    assert analysis["A1"].value == ORDER_NOTE
+    assert analysis["A2"].value == "번호"
+    assert analysis.freeze_panes == "D3"

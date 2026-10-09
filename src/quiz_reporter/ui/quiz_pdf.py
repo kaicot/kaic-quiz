@@ -38,14 +38,19 @@ def _print(html: str, path: Path) -> None:
 
 
 def write_report_pdfs(
-    reports: tuple[StudentReport, ...], title: str, date: str, folder: Path
+    reports: tuple[StudentReport, ...],
+    title: str,
+    date: str,
+    folder: Path,
+    *,
+    numbered: bool = True,
 ) -> tuple[Path, tuple[Path, ...]]:
     """``<folder>/전체(인쇄용).pdf`` and ``<folder>/개별/<순번>_<학번>_<이름>.pdf``."""
     folder.mkdir(parents=True, exist_ok=True)
     single = folder / "개별"
     single.mkdir(exist_ok=True)
     bundle = folder / "전체(인쇄용).pdf"
-    _print(reports_html(reports, title, date), bundle)
+    _print(reports_html(reports, title, date, numbered=numbered), bundle)
     files: list[Path] = []
     for report in reports:
         student = report.student
@@ -54,7 +59,7 @@ def write_report_pdfs(
         )
         target = single / f"{name}.pdf"
         _print(
-            f"<html><body style='font-size:9pt'>{report_html(report, title, date, page_break=False)}"
+            f"<html><body style='font-size:9pt'>{report_html(report, title, date, page_break=False, numbered=numbered)}"
             "</body></html>",
             target,
         )
@@ -86,7 +91,9 @@ def write_quiz_reports(quiz: GradedQuiz, folder: Path) -> Result[QuizReportSumma
     reports, _ = build_reports(quiz.bank, quiz.students)
     date = (quiz.graded_at or "")[:10]
     try:
-        bundle, _ = write_report_pdfs(reports, quiz.exam_name, date, folder)
+        bundle, _ = write_report_pdfs(
+            reports, quiz.exam_name, date, folder, numbered=not quiz.bank.response_order
+        )
     except OSError as exc:
         return Err(
             (

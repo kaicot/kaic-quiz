@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zipfile import BadZipFile
 
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
@@ -212,7 +213,7 @@ def read_form_responses(path: str) -> Result[FormResponses]:
     if suffix == ".xlsx":
         try:
             workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-        except (InvalidFileException, OSError, ValueError, KeyError):
+        except (InvalidFileException, BadZipFile, OSError, ValueError, KeyError):
             return _error("엑셀 파일을 열 수 없습니다.")
         try:
             sheet: Any = workbook.worksheets[0]

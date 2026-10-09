@@ -227,8 +227,13 @@ def _choice(number: int | None) -> str:
     return "무응답" if number is None else CIRCLED[number - 1]
 
 
-def report_html(report: StudentReport, title: str, date: str, *, page_break: bool) -> str:
-    """One student's A4 page; Qt rich text, so layout is built from tables."""
+def report_html(
+    report: StudentReport, title: str, date: str, *, page_break: bool, numbered: bool = True
+) -> str:
+    """One student's A4 page; Qt rich text, so layout is built from tables.
+
+    ``numbered=False`` leaves out ①~⑤ when they would not match the form's option numbers.
+    """
     s = report.student
     percent = report.score / report.maximum if report.maximum else 0.0
     average = report.average / report.maximum if report.maximum else 0.0
@@ -301,7 +306,8 @@ def report_html(report: StudentReport, title: str, date: str, *, page_break: boo
             item = miss.item
             answer = item.answer or 0
             chosen = (
-                f"<b>{_choice(miss.chosen)}</b> {escape(item.options[miss.chosen - 1])}"
+                (f"<b>{_choice(miss.chosen)}</b> " if numbered else "")
+                + escape(item.options[miss.chosen - 1])
                 if miss.chosen
                 else "<b>무응답</b>"
             )
@@ -321,8 +327,12 @@ def report_html(report: StudentReport, title: str, date: str, *, page_break: boo
                 f"{escape(item.question)}<br>"
                 f"<span style='color:{_MUTED}'>내가 고른 답</span>&nbsp; {chosen}{trap}<br>"
                 f"<span style='color:{_GREEN}; font-weight:700'>정답</span>&nbsp; "
-                f"<span style='color:{_GREEN}; font-weight:700'>{CIRCLED[answer - 1]}</span> "
-                f"<span style='color:{_GREEN}'>{escape(item.options[answer - 1])}</span>"
+                + (
+                    f"<span style='color:{_GREEN}; font-weight:700'>{CIRCLED[answer - 1]}</span> "
+                    if numbered
+                    else ""
+                )
+                + f"<span style='color:{_GREEN}'>{escape(item.options[answer - 1])}</span>"
                 f"{reason}"
             )
             parts.append(_box(content, _RED, "#fbfbfd"))
@@ -371,9 +381,11 @@ def report_html(report: StudentReport, title: str, date: str, *, page_break: boo
     return "".join(parts)
 
 
-def reports_html(reports: tuple[StudentReport, ...], title: str, date: str) -> str:
+def reports_html(
+    reports: tuple[StudentReport, ...], title: str, date: str, *, numbered: bool = True
+) -> str:
     pages = "".join(
-        report_html(report, title, date, page_break=index > 0)
+        report_html(report, title, date, page_break=index > 0, numbered=numbered)
         for index, report in enumerate(reports)
     )
     return f"<html><body style='font-size:9pt'>{pages}</body></html>"

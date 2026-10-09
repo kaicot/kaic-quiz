@@ -84,6 +84,8 @@ class AnswerSheet:
 
     options: tuple[tuple[str, ...], ...]
     answers: tuple[int | None, ...]
+    # Options numbered as answers appeared in the responses (from CSV scores).
+    from_responses: bool = False
 
 
 def sheet_from_bank(responses: FormResponses, bank: QuizBank) -> Result[AnswerSheet]:
@@ -120,6 +122,7 @@ def sheet_from_bank(responses: FormResponses, bank: QuizBank) -> Result[AnswerSh
         AnswerSheet(
             tuple(tuple(item.options) for item in bank.items),
             tuple(item.answer for item in bank.items),
+            bank.response_order,
         )
     )
 
@@ -162,7 +165,7 @@ def sheet_from_scores(responses: FormResponses) -> Result[AnswerSheet]:
         answers.append(seen.index(right.pop()) + 1 if right else None)
     if problems:
         return Err(tuple(_problem(text) for text in problems))
-    return Ok(AnswerSheet(tuple(options), tuple(answers)))
+    return Ok(AnswerSheet(tuple(options), tuple(answers), from_responses=True))
 
 
 def sheet_from_form(
@@ -218,7 +221,8 @@ def bank_from_sheet(responses: FormResponses, sheet: AnswerSheet, units: str = "
             for number, (title, options, answer) in enumerate(
                 zip(responses.questions, sheet.options, sheet.answers, strict=True), 1
             )
-        )
+        ),
+        response_order=sheet.from_responses,
     )
 
 

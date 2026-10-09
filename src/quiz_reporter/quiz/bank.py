@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from zipfile import BadZipFile
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -23,6 +24,10 @@ from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
 
 BANK_SHEET = "문항표"
 GUIDE_SHEET = "설명"
+# First line of the 설명 sheet in a response-order bank; reading it restores the flag.
+RESPONSE_ORDER_NOTE = (
+    "보기 순서: 응답에 처음 나온 순서입니다(폼의 보기 번호와 다를 수 있음). 이 줄을 지우지 마세요."
+)
 OPTION_COUNT = 5
 MAX_QUESTIONS = 100
 MAX_PROBLEMS = 40
@@ -79,6 +84,9 @@ class QuizItem:
 @dataclass(frozen=True, slots=True)
 class QuizBank:
     items: tuple[QuizItem, ...]
+    # True when the options are numbered in the order answers first appeared in the
+    # responses (a bank built from CSV scores), not the form's own order.
+    response_order: bool = False
 
     @property
     def complete(self) -> bool:
@@ -238,7 +246,7 @@ def readability_notes(bank: QuizBank) -> list[str]:
 def parse_bank_bytes(data: bytes, *, require_feedback: bool = True) -> Result[QuizBank]:
     try:
         workbook = load_workbook(BytesIO(data), read_only=True, data_only=True)
-    except (InvalidFileException, OSError, ValueError, KeyError):
+    except (InvalidFileException, BadZipFile, OSError, ValueError, KeyError):
         return Err((_problem("엑셀 파일을 열 수 없습니다. .xlsx 파일인지 확인하세요."),))
     try:
         if BANK_SHEET not in workbook.sheetnames:
@@ -247,9 +255,16 @@ def parse_bank_bytes(data: bytes, *, require_feedback: bool = True) -> Result[Qu
         if (sheet.max_row or 0) > MAX_QUESTIONS + 50:
             return Err((_problem(f"'{BANK_SHEET}' 시트가 너무 큽니다."),))
         rows = [tuple(row) for row in sheet.iter_rows(values_only=True)]
+        response_order = GUIDE_SHEET in workbook.sheetnames and any(
+            row and row[0] == RESPONSE_ORDER_NOTE
+            for row in workbook[GUIDE_SHEET].iter_rows(max_row=3, values_only=True)
+        )
     finally:
         workbook.close()
-    return read_bank(rows, require_feedback=require_feedback)
+    read = read_bank(rows, require_feedback=require_feedback)
+    if isinstance(read, Ok) and response_order:
+        return Ok(replace(read.value, response_order=True), read.warnings)
+    return read
 
 
 def parse_bank(path: str, *, require_feedback: bool = True) -> Result[QuizBank]:
@@ -318,6 +333,7 @@ def bank_workbook_bytes(bank: QuizBank) -> bytes:
     _bank_sheet(workbook, bank)
     guide = workbook.create_sheet(GUIDE_SHEET)
     lines = [
+        *([RESPONSE_ORDER_NOTE] if bank.response_order else []),
         "문항표: 한 줄에 한 문항. 문제와 보기는 구글 폼에 보이는 글자 그대로 적습니다.",
         "정답: 1~5. 오답이유·함정유형은 정답이 아닌 보기 4개에만 적습니다(정답 칸은 비움).",
         "함정유형은 아래 목록 중 하나만 씁니다.",
@@ -340,6 +356,7 @@ __all__ = [
     "TRAP_TYPES",
     "QuizBank",
     "QuizItem",
+    "RESPONSE_ORDER_NOTE",
     "READABLE_LIMIT",
     "bank_workbook_bytes",
     "normalize",

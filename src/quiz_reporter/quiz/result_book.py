@@ -29,6 +29,11 @@ SHEET_NAMES = (
 _BOLD = Font(bold=True)
 _TITLE = Font(bold=True, size=14)
 _NOTE = Font(color="FF6B7280")
+_ORDER_NOTE = Font(color="FF9A4A00", bold=True)
+ORDER_NOTE = (
+    "보기 번호는 폼 순서가 아니라 응답에 처음 나온 순서입니다."
+    " 공개 폼 주소로 문항표 틀을 만들면 폼 순서가 됩니다."
+)
 _CENTER = Alignment(horizontal="center", vertical="center")
 
 
@@ -102,6 +107,7 @@ def _result_sheet(sheet: Any, graded: Graded, title: str) -> None:
         ]
     )
     sheet["A2"].font = _NOTE
+    _order_note(sheet, graded)
     _header(
         sheet, ["순번", "학번", "이름", "점수", "만점", *(item.number for item in items), "비고"]
     )
@@ -163,8 +169,16 @@ def _most_chosen(numbers: list[int], count: int) -> str:
     return f"{options}번 ({'각 ' if len(numbers) > 1 else ''}{count}명)"
 
 
+def _order_note(sheet: Any, graded: Graded) -> None:
+    """On response-order quizzes, say the numbers are not the form's (above the header)."""
+    if graded.bank.response_order:
+        sheet.append([ORDER_NOTE])
+        sheet.cell(sheet.max_row, 1).font = _ORDER_NOTE
+
+
 def _analysis_sheet(sheet: Any, graded: Graded) -> None:
     sheet.title = ANALYSIS_SHEET
+    _order_note(sheet, graded)
     _header(
         sheet,
         [
@@ -178,6 +192,7 @@ def _analysis_sheet(sheet: Any, graded: Graded) -> None:
             "그 함정 유형",
         ],
     )
+    header_row = sheet.max_row
     for item in graded.bank.items:
         index = item.number - 1
         counts = graded.summary.option_counts[index]
@@ -208,7 +223,7 @@ def _analysis_sheet(sheet: Any, graded: Graded) -> None:
         sheet.cell(line, 3).alignment = Alignment(wrap_text=True, vertical="top")
         sheet.cell(line, 4).alignment = _CENTER
     _fit_columns(sheet, fixed={"C": 50})
-    sheet.freeze_panes = "D2"
+    sheet.freeze_panes = sheet.cell(header_row + 1, 4)
 
 
 def _students_sheet(sheet: Any, graded: Graded) -> None:

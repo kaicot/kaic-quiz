@@ -610,7 +610,13 @@ class QuizPage(QWidget):
         sheet, bank = prepared
         name = self.name_edit.text().strip() or "퀴즈"
         self.run_requested.emit(
-            QuizRunRequest(name, self._responses_path, self._cutoff(), sheet, bank)
+            QuizRunRequest(
+                name,
+                self._responses_path,
+                self._cutoff(),
+                sheet,
+                bank,
+            )
         )
 
     def _update_badges(self, selection: Selection | None) -> None:

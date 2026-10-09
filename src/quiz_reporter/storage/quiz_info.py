@@ -20,6 +20,9 @@ BANK_FILENAME = "문항표.xlsx"
 RESPONSES_STEM = "응답원본"
 RESPONSE_SUFFIXES = (".csv", ".xlsx")
 REPORT_DIRNAME = "리포트"
+# Where the options' order (and so their numbers) came from: the form itself (a 문항표 or
+# the public form page) or only the order answers first appeared in the responses.
+FORM_ORDER, RESPONSE_ORDER = "form", "responses"
 _KEYS = {
     "format",
     "app_version",
@@ -29,6 +32,7 @@ _KEYS = {
     "source_name",
     "responses_file",
     "cutoff",
+    "option_order",
     "summary",
 }
 _SUMMARY_KEYS = {
@@ -68,7 +72,13 @@ class QuizInfo:
     source_name: str
     responses_file: str
     cutoff: datetime | None
+    option_order: str
     summary: QuizSummary
+
+    @property
+    def numbered(self) -> bool:
+        """Option numbers match the form, so reports may show ①~⑤."""
+        return self.option_order == FORM_ORDER
 
     def to_json(self) -> dict[str, object]:
         summary = self.summary
@@ -81,6 +91,7 @@ class QuizInfo:
             "source_name": self.source_name,
             "responses_file": self.responses_file,
             "cutoff": None if self.cutoff is None else self.cutoff.isoformat(),
+            "option_order": self.option_order,
             "summary": {
                 "students": summary.students,
                 "flagged": summary.flagged,
@@ -111,6 +122,7 @@ class QuizInfo:
             _text(value["source_name"]),
             _responses_file(value["responses_file"]),
             None if cutoff is None else _moment(cutoff),
+            _choice_of(value["option_order"], (FORM_ORDER, RESPONSE_ORDER)),
             QuizSummary(
                 _integer(summary["students"]),
                 _integer(summary["flagged"]),
@@ -146,6 +158,12 @@ def _text(value: object) -> str:
     if type(value) is not str:
         raise ValueError("expected text")
     return value
+
+
+def _choice_of(value: object, allowed: tuple[str, ...]) -> str:
+    if value not in allowed:
+        raise ValueError("unexpected value")
+    return str(value)
 
 
 def _moment(value: object) -> datetime:
@@ -200,6 +218,8 @@ def read_quiz_info(folder: Path) -> Result[QuizInfo]:
 
 __all__ = [
     "BANK_FILENAME",
+    "FORM_ORDER",
+    "RESPONSE_ORDER",
     "INFO_FILENAME",
     "INFO_FORMAT",
     "REPORT_DIRNAME",

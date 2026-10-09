@@ -171,3 +171,51 @@ def test_students_are_listed_by_name_then_id_and_excluded_rows_say_why(tmp_path)
         ("1234", "복습", "마감 뒤 응답(복습)"),
         ("20260002", "다라", "같은 학번의 두 번째 이후 응답"),
     ]
+
+
+def test_a_report_without_form_numbers_shows_option_text_only(tmp_path):
+    from quiz_reporter.quiz.report import report_html
+
+    responses = _responses(tmp_path, "퀴즈.csv", form_csv())
+    sheet = sheet_from_scores(responses)
+    assert isinstance(sheet, Ok)
+    bank = bank_from_sheet(responses, sheet.value)
+    quiz = _grade("기본형", select(responses, suggest_cutoff(responses)), sheet.value, bank)
+    reports, _ = build_reports(quiz.bank, quiz.students)
+    report = next(item for item in reports if item.misses)
+
+    numbered = report_html(report, "기본형", "2026-10-06", page_break=False)
+    plain = report_html(report, "기본형", "2026-10-06", page_break=False, numbered=False)
+
+    assert any(mark in numbered for mark in "①②③④⑤")
+    miss = report.misses[0]
+    chosen_text = miss.item.options[miss.chosen - 1]
+    assert chosen_text in plain
+    body = plain.split("틀린 문항", 1)[1].split("복습 우선순위", 1)[0]
+    assert not any(mark in body for mark in "①②③④⑤")
+
+
+def test_a_response_order_bank_round_trips_through_its_workbook(tmp_path):
+    responses = _responses(tmp_path, "퀴즈.csv", form_csv())
+    sheet = sheet_from_scores(responses)
+    assert isinstance(sheet, Ok) and sheet.value.from_responses
+    bank = bank_from_sheet(responses, sheet.value)
+    assert bank.response_order
+
+    again = parse_bank_bytes(bank_workbook_bytes(bank), require_feedback=False)
+
+    assert again == Ok(bank)
+    assert sheet_from_bank(responses, bank) == Ok(sheet.value)
+    assert not parse_bank_bytes(bank_workbook_bytes(full_bank())).value.response_order
+
+
+def test_a_damaged_workbook_is_explained_not_raised(tmp_path):
+    from quiz_reporter.quiz.bank import parse_bank
+
+    broken = tmp_path / "문항표.xlsx"
+    broken.write_bytes(b"not a workbook")
+    responses = tmp_path / "응답.xlsx"
+    responses.write_bytes(b"not a workbook")
+
+    assert isinstance(parse_bank(str(broken)), Err)
+    assert isinstance(read_form_responses(str(responses)), Err)
