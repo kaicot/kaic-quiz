@@ -1,5 +1,8 @@
 """Per-student quiz feedback: what was missed, why, which traps keep catching the student, and
 what to review first. Pure: the caller supplies graded choices and the bank.
+
+Two looks share one layout: color for the PDF a student gets, and a grey-scale look for the
+bundle teachers print in bulk (marks and weight instead of color, no wide tinted areas).
 """
 
 from __future__ import annotations
@@ -22,6 +25,10 @@ TRAP_ADVICE = {
     "지나친 일반화": "'모든', '항상' 같은 말이 나오면 예외가 없는지 따져 보세요.",
     "사례 적용 오류": "개념을 실제 사례에 적용하는 문제를 더 풀어 보세요.",
 }
+# Questions per row on the result strip.
+STRIP_COLUMNS = 15
+# Body text size: small enough that a student who missed most questions still fits on one A4.
+BODY_PT = 8.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +45,8 @@ class Student:
 class Miss:
     item: QuizItem
     chosen: int | None
+    # Share of the class that got this question right.
+    class_rate: float = 0.0
 
     @property
     def reason(self) -> str:
@@ -51,10 +60,12 @@ class Miss:
 
 
 @dataclass(frozen=True, slots=True)
-class UnitRow:
-    unit: str
-    mine: float
-    average: float
+class Mark:
+    """One graded question on the student's result strip."""
+
+    number: int
+    correct: bool
+    class_rate: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +74,7 @@ class StudentReport:
     score: int
     maximum: int
     average: float
-    units: tuple[UnitRow, ...]
+    marks: tuple[Mark, ...]
     misses: tuple[Miss, ...]
     right: tuple[int, ...]
     traps: tuple[tuple[str, int], ...]
@@ -122,39 +133,25 @@ def build_reports(
 ) -> tuple[tuple[StudentReport, ...], ClassSummary]:
     summary = summarize(bank, students)
     items = _graded(bank)
-    units = list(dict.fromkeys(item.unit for item in items if item.unit))
-    unit_items = {unit: [item for item in items if item.unit == unit] for unit in units}
-    class_unit = {
-        unit: (
-            sum(summary.correct_rate[item.number - 1] for item in unit_items[unit])
-            / len(unit_items[unit])
-        )
-        for unit in units
-    }
     reports: list[StudentReport] = []
     for student in students:
+        marks = tuple(
+            Mark(
+                item.number,
+                student.choices[item.number - 1] == item.answer,
+                summary.correct_rate[item.number - 1],
+            )
+            for item in items
+        )
         misses = tuple(
-            Miss(item, student.choices[item.number - 1])
+            Miss(item, student.choices[item.number - 1], summary.correct_rate[item.number - 1])
             for item in items
             if student.choices[item.number - 1] != item.answer
         )
-        right = tuple(
-            item.number for item in items if student.choices[item.number - 1] == item.answer
-        )
-        mine = {
-            unit: sum(student.choices[item.number - 1] == item.answer for item in unit_items[unit])
-            / len(unit_items[unit])
-            for unit in units
-        }
+        right = tuple(mark.number for mark in marks if mark.correct)
         traps = Counter(miss.trap for miss in misses if miss.trap)
-        # Weakest units first (furthest below the class), then question order.
-        ordered = sorted(
-            misses,
-            key=lambda miss: (
-                mine.get(miss.item.unit, 0) - class_unit.get(miss.item.unit, 0),
-                miss.item.number,
-            ),
-        )
+        # Review first what most of the class got right: the gaps quickest to close.
+        ordered = sorted(misses, key=lambda miss: (-miss.class_rate, miss.item.number))
         review = tuple(dict.fromkeys(miss.item.review for miss in ordered if miss.item.review))[:3]
         reports.append(
             StudentReport(
@@ -162,7 +159,7 @@ def build_reports(
                 len(right),
                 len(items),
                 summary.average,
-                tuple(UnitRow(unit, mine[unit], class_unit[unit]) for unit in units),
+                marks,
                 misses,
                 right,
                 tuple(traps.most_common()),
@@ -172,45 +169,106 @@ def build_reports(
     return tuple(reports), summary
 
 
-# Palette: the app theme's colors. Teal frames the page and marks "me"; green, red and amber
-# keep their meanings (right, wrong, trap). Pages are printed in bulk, often in grey, so the
-# header is a thin rule rather than a solid band, and "me" (dark teal) and the class (light
-# slate) stay apart in grey too.
-_INK = TOKENS.text
-_BRAND, _BRAND_SOFT = TOKENS.primary, TOKENS.primary_soft
-_TRACK = "#E6ECEA"
-_CLASS = "#9AA5B1"
-_MUTED = TOKENS.muted
-_CARD = TOKENS.window
-_RULE = TOKENS.border
-_RED, _RED_SOFT = TOKENS.error, TOKENS.error_soft
-_GREEN, _GREEN_SOFT = TOKENS.success, "#E8F5EE"
-_GREEN_STRONG = "#166534"  # text on the soft green box
-_ORANGE, _ORANGE_SOFT, _ORANGE_CHIP = TOKENS.warning, TOKENS.warning_soft, "#FFE8CC"
-_FOOTER = TOKENS.muted
-_REASON_TEXT = "#3F1D1D"
+@dataclass(frozen=True, slots=True)
+class _Look:
+    mono: bool
+    ink: str
+    muted: str
+    brand: str
+    brand_soft: str
+    score_bar: str
+    track: str
+    klass: str
+    card: str
+    rule: str
+    red: str
+    red_soft: str
+    green: str
+    green_soft: str
+    green_strong: str
+    orange: str
+    orange_soft: str
+    orange_chip: str
+    reason: str
+    wrong_cell: str
+    # Width of the left rule on boxes, in pixels.
+    accent: int
+
+
+# Color, for the PDF a student gets: the app theme. Teal frames the page and marks "me"; green,
+# red and amber keep their meanings (right, wrong, trap).
+COLOR = _Look(
+    mono=False,
+    ink=TOKENS.text,
+    muted=TOKENS.muted,
+    brand=TOKENS.primary,
+    brand_soft=TOKENS.primary_soft,
+    score_bar=TOKENS.primary,
+    track="#E6ECEA",
+    klass="#9AA5B1",
+    card=TOKENS.window,
+    rule=TOKENS.border,
+    red=TOKENS.error,
+    red_soft=TOKENS.error_soft,
+    green=TOKENS.success,
+    green_soft="#E8F5EE",
+    green_strong="#166534",
+    orange=TOKENS.warning,
+    orange_soft=TOKENS.warning_soft,
+    orange_chip="#FFE8CC",
+    reason="#3F1D1D",
+    wrong_cell=TOKENS.error_soft,
+    accent=4,
+)
+# Grey scale, for the bundle printed in bulk: black and dark grey text on white, rules instead
+# of tinted boxes, ✕ and weight for wrong answers. Only the small wrong cells and bars are grey.
+MONO = _Look(
+    mono=True,
+    ink="#111111",
+    muted="#404040",
+    brand="#111111",
+    brand_soft="#FFFFFF",
+    score_bar="#404040",
+    track="#E0E0E0",
+    klass="#8C8C8C",
+    card="#FFFFFF",
+    rule="#111111",
+    red="#111111",
+    red_soft="#FFFFFF",
+    green="#111111",
+    green_soft="#FFFFFF",
+    green_strong="#111111",
+    orange="#111111",
+    orange_soft="#FFFFFF",
+    orange_chip="#FFFFFF",
+    reason="#111111",
+    wrong_cell="#D9D9D9",
+    accent=2,
+)
 
 # (label, text, background) pairs drawn on the page; tests hold them to WCAG AA.
 REPORT_TEXT_PAIRS: tuple[tuple[str, str, str], ...] = (
-    ("ink on white", _INK, "#FFFFFF"),
-    ("muted on card", _MUTED, _CARD),
-    ("muted on white", _MUTED, "#FFFFFF"),
-    ("brand on white", _BRAND, "#FFFFFF"),
-    ("brand on card", _BRAND, _CARD),
-    ("brand on brand soft", _BRAND, _BRAND_SOFT),
-    ("green on card", _GREEN, _CARD),
-    ("green on white", _GREEN, "#FFFFFF"),
-    ("red on card", _RED, _CARD),
-    ("red on red soft", _RED, _RED_SOFT),
-    ("reason text on red soft", _REASON_TEXT, _RED_SOFT),
-    ("footer on white", _FOOTER, "#FFFFFF"),
-    ("amber on amber soft", _ORANGE, _ORANGE_SOFT),
-    ("amber on amber chip", _ORANGE, _ORANGE_CHIP),
-    ("strong green on green soft", _GREEN_STRONG, _GREEN_SOFT),
+    ("ink on white", COLOR.ink, "#FFFFFF"),
+    ("muted on card", COLOR.muted, COLOR.card),
+    ("muted on white", COLOR.muted, "#FFFFFF"),
+    ("brand on white", COLOR.brand, "#FFFFFF"),
+    ("brand on card", COLOR.brand, COLOR.card),
+    ("brand on brand soft", COLOR.brand, COLOR.brand_soft),
+    ("green on card", COLOR.green, COLOR.card),
+    ("green on white", COLOR.green, "#FFFFFF"),
+    ("red on card", COLOR.red, COLOR.card),
+    ("red on red soft", COLOR.red, COLOR.red_soft),
+    ("reason text on red soft", COLOR.reason, COLOR.red_soft),
+    ("amber on amber soft", COLOR.orange, COLOR.orange_soft),
+    ("amber on amber chip", COLOR.orange, COLOR.orange_chip),
+    ("strong green on green soft", COLOR.green_strong, COLOR.green_soft),
+    ("grey: ink on white", MONO.ink, "#FFFFFF"),
+    ("grey: muted on white", MONO.muted, "#FFFFFF"),
+    ("grey: ink on wrong cell", MONO.ink, MONO.wrong_cell),
 )
 
 
-def _bar(rate: float, color: str, height: str = "6pt") -> str:
+def _bar(rate: float, color: str, track: str, height: str = "5pt") -> str:
     """A horizontal bar as a one-row table: filled part, then the empty track."""
     filled = max(0, min(100, round(rate * 100)))
     cells = []
@@ -220,32 +278,47 @@ def _bar(rate: float, color: str, height: str = "6pt") -> str:
         )
     if filled < 100:
         cells.append(
-            f"<td width='{100 - filled}%' bgcolor='{_TRACK}' style='font-size:{height}'>&nbsp;</td>"
+            f"<td width='{100 - filled}%' bgcolor='{track}' style='font-size:{height}'>&nbsp;</td>"
         )
     return f"<table width='100%' cellspacing='0' cellpadding='0'><tr>{''.join(cells)}</tr></table>"
 
 
-def _chip(text: str, color: str, background: str) -> str:
+def _chip(text: str, color: str, background: str, look: _Look) -> str:
+    if look.mono:
+        return f"<span style='color:{look.ink}; font-weight:700'>[{escape(text)}]</span>"
     return (
         f"<span style='background-color:{background}; color:{color}; font-weight:600'>"
         f"&nbsp;{escape(text)}&nbsp;</span>"
     )
 
 
-def _heading(text: str, color: str = _BRAND) -> str:
+def _heading(text: str, color: str) -> str:
     return (
-        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:9px; margin-bottom:3px'>"
+        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:7px; margin-bottom:2px'>"
         f"<tr><td width='4' bgcolor='{color}'></td><td style='padding-left:6px'>"
         f"<span style='font-size:10.5pt; font-weight:700; color:{color}'>{escape(text)}</span>"
         "</td></tr></table>"
     )
 
 
-def _box(content: str, accent: str, background: str) -> str:
+def _box(content: str, accent: str, background: str, look: _Look) -> str:
     return (
-        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:3px'>"
-        f"<tr><td width='4' bgcolor='{accent}'></td>"
-        f"<td bgcolor='{background}' style='padding:6px 9px'>{content}</td></tr></table>"
+        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:2px'>"
+        f"<tr><td width='{look.accent}' bgcolor='{accent}'></td>"
+        f"<td bgcolor='{background}' style='padding:4px 8px'>{content}</td></tr></table>"
+    )
+
+
+def _card(content: str, width: str, look: _Look) -> str:
+    if look.mono:
+        return (
+            f"<td width='{width}' valign='top'><table width='100%' cellspacing='0' cellpadding='0'>"
+            f"<tr><td width='{look.accent}' bgcolor='{look.rule}'></td>"
+            f"<td style='padding:4px 9px'>{content}</td></tr></table></td>"
+        )
+    return (
+        f"<td width='{width}' bgcolor='{look.card}' style='padding:6px 10px' valign='top'>"
+        f"{content}</td>"
     )
 
 
@@ -253,89 +326,123 @@ def _choice(number: int | None) -> str:
     return "무응답" if number is None else CIRCLED[number - 1]
 
 
+def _percent(rate: float) -> str:
+    return f"{round(rate * 100)}%"
+
+
+def _strip(marks: tuple[Mark, ...], look: _Look) -> str:
+    """Mine (○/✕) over the class's correct rate, one column per question."""
+    blocks = []
+    for start in range(0, len(marks), STRIP_COLUMNS):
+        chunk = marks[start : start + STRIP_COLUMNS]
+        width = min(100, 13 + 6 * len(chunk))
+        label = f"<td width='{round(1300 / width)}%' style='color:{look.muted}'>"
+        numbers = "".join(
+            f"<td align='center' style='color:{look.muted}'>{mark.number}</td>" for mark in chunk
+        )
+        mine = "".join(
+            f"<td align='center' bgcolor='{look.green_soft}' style='color:{look.green_strong}'>○</td>"
+            if mark.correct
+            else f"<td align='center' bgcolor='{look.wrong_cell}'"
+            f" style='color:{look.red}; font-weight:700'>✕</td>"
+            for mark in chunk
+        )
+        rates = "".join(
+            f"<td align='center' style='color:{look.muted}; font-size:8pt'>"
+            f"{_percent(mark.class_rate)}</td>"
+            for mark in chunk
+        )
+        blocks.append(
+            f"<table width='{width}%' cellspacing='1' cellpadding='2' style='margin-top:2px'>"
+            f"<tr>{label}문항</td>{numbers}</tr>"
+            f"<tr>{label}<b style='color:{look.ink}'>나</b></td>{mine}</tr>"
+            f"<tr>{label}반 정답률</td>{rates}</tr></table>"
+        )
+    return "".join(blocks)
+
+
 def report_html(
-    report: StudentReport, title: str, date: str, *, page_break: bool, numbered: bool = True
+    report: StudentReport,
+    title: str,
+    date: str,
+    *,
+    page_break: bool,
+    numbered: bool = True,
+    mono: bool = False,
 ) -> str:
     """One student's A4 page; Qt rich text, so layout is built from tables.
 
-    ``numbered=False`` leaves out ①~⑤ when they would not match the form's option numbers.
+    ``date`` is the day the quiz was taken (blank when unknown). ``numbered=False`` leaves out
+    ①~⑤ when they would not match the form's option numbers. ``mono`` is the grey-scale look.
     """
+    look = MONO if mono else COLOR
     s = report.student
     percent = report.score / report.maximum if report.maximum else 0.0
     average = report.average / report.maximum if report.maximum else 0.0
     gap = report.score - report.average
     gap_text = (
-        f"<span style='color:{_GREEN}'>반 평균보다 {gap:+.1f}점</span>"
+        f"<span style='color:{look.green}'>반 평균보다 {gap:+.1f}점</span>"
         if gap > 0.05
-        else f"<span style='color:{_RED}'>반 평균보다 {gap:+.1f}점</span>"
+        else f"<span style='color:{look.red}'>반 평균보다 {gap:+.1f}점</span>"
         if gap < -0.05
-        else f"<span style='color:{_MUTED}'>반 평균과 같음</span>"
+        else f"<span style='color:{look.muted}'>반 평균과 같음</span>"
     )
     parts = [f"<div style='{'page-break-before: always;' if page_break else ''}'>"]
-    # Header: a thin teal rule over the title and the student, then a hairline (light on ink).
+    # Header: a thin rule over the title and the student, then a hairline.
     student_id = (
-        f"<span style='color:{_MUTED}; font-size:9pt'>{escape(s.student_id)}</span>"
+        f"<span style='color:{look.muted}; font-size:9pt'>{escape(s.student_id)}</span>"
         if s.student_id
-        else f"<span style='color:{_RED}; font-size:9pt; font-weight:700'>학번 확인 필요</span>"
+        else f"<span style='color:{look.red}; font-size:9pt; font-weight:700'>학번 확인 필요</span>"
     )
+    subtitle = f"{escape(date)} 응시  ·  학생별 피드백 리포트" if date else "학생별 피드백 리포트"
     parts.append(
         "<table width='100%' cellspacing='0' cellpadding='0'>"
-        f"<tr><td colspan='2' bgcolor='{_BRAND}' style='font-size:3pt'>&nbsp;</td></tr>"
-        "<tr><td style='padding:7px 2px 6px 2px'>"
-        f"<span style='color:{_INK}; font-size:15pt; font-weight:700'>{escape(title)}</span><br>"
-        f"<span style='color:{_MUTED}; font-size:8.5pt'>{escape(date)}  ·  학생별 피드백 리포트</span>"
-        "</td><td align='right' style='padding:7px 2px 6px 2px'>"
-        f"<span style='color:{_INK}; font-size:14pt; font-weight:700'>{escape(s.name) or '이름 없음'}"
+        f"<tr><td colspan='2' bgcolor='{look.brand}' style='font-size:3pt'>&nbsp;</td></tr>"
+        "<tr><td style='padding:6px 2px 5px 2px'>"
+        f"<span style='color:{look.ink}; font-size:15pt; font-weight:700'>{escape(title)}</span><br>"
+        f"<span style='color:{look.muted}; font-size:8.5pt'>{subtitle}</span>"
+        "</td><td align='right' style='padding:6px 2px 5px 2px'>"
+        f"<span style='color:{look.ink}; font-size:14pt; font-weight:700'>{escape(s.name) or '이름 없음'}"
         f"</span><br>{student_id}</td></tr>"
-        f"<tr><td colspan='2' bgcolor='{_RULE}' style='font-size:1pt'>&nbsp;</td></tr>"
+        f"<tr><td colspan='2' bgcolor='{look.rule}' style='font-size:1pt'>&nbsp;</td></tr>"
         "</table>"
     )
     # Score cards.
     right = ", ".join(str(n) for n in report.right) or "없음"
-    parts.append(
-        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:8px'><tr>"
-        f"<td width='36%' bgcolor='{_CARD}' style='padding:8px 10px' valign='top'>"
-        f"<span style='color:{_MUTED}; font-size:8.5pt'>내 점수</span><br>"
-        f"<span style='color:{_BRAND}; font-size:24pt; font-weight:700'>{report.score}</span>"
-        f"<span style='font-size:11pt; color:{_MUTED}'> / {report.maximum}  ({round(percent * 100)}%)</span>"
-        f"{_bar(percent, _BRAND)}</td>"
-        "<td width='2%'></td>"
-        f"<td width='30%' bgcolor='{_CARD}' style='padding:8px 10px' valign='top'>"
-        f"<span style='color:{_MUTED}; font-size:8.5pt'>반 평균</span><br>"
-        f"<span style='font-size:16pt; font-weight:700'>{report.average:.1f}</span>"
-        f"<span style='color:{_MUTED}'> / {report.maximum}</span><br>{gap_text}"
-        f"{_bar(average, _CLASS)}</td>"
-        "<td width='2%'></td>"
-        f"<td width='30%' bgcolor='{_CARD}' style='padding:8px 10px' valign='top'>"
-        f"<span style='color:{_MUTED}; font-size:8.5pt'>맞힌 문항</span><br>"
-        f"<span style='color:{_GREEN}; font-weight:700'>{escape(right)}</span><br>"
-        f"<span style='color:{_MUTED}; font-size:8.5pt'>틀린 문항</span> "
-        f"<span style='color:{_RED}; font-weight:700'>{len(report.misses)}개</span></td>"
-        "</tr></table>"
+    mine = (
+        f"<span style='color:{look.muted}; font-size:8.5pt'>내 점수</span><br>"
+        f"<span style='color:{look.brand}; font-size:20pt; font-weight:700'>{report.score}</span>"
+        f"<span style='font-size:11pt; color:{look.muted}'> / {report.maximum}"
+        f"  ({round(percent * 100)}%)</span>{_bar(percent, look.score_bar, look.track)}"
     )
-    # Units: my bar over the class bar.
-    if report.units:
-        rows = []
-        for row in report.units:
-            weak = row.mine + 0.2 <= row.average
-            flag = _chip("복습", _RED, _RED_SOFT) if weak else ""
-            rows.append(
-                f"<tr><td width='24%' valign='middle'><b>{escape(row.unit)}</b></td>"
-                f"<td width='46%' valign='middle'>{_bar(row.mine, _BRAND, '5pt')}"
-                f"<table width='100%' cellspacing='0' cellpadding='0'><tr><td style='font-size:2pt'>&nbsp;</td></tr></table>"
-                f"{_bar(row.average, _CLASS, '3pt')}</td>"
-                f"<td width='18%' align='right' valign='middle'><span style='color:{_BRAND}; font-weight:700'>"
-                f"나 {round(row.mine * 100)}%</span><br><span style='color:{_MUTED}; font-size:8pt'>반 "
-                f"{round(row.average * 100)}%</span></td>"
-                f"<td width='12%' align='center' valign='middle'>{flag}</td></tr>"
-            )
-        parts.append(_heading("단원별 정답률"))
-        parts.append(
-            "<table width='100%' cellspacing='0' cellpadding='3'>" + "".join(rows) + "</table>"
-        )
+    klass = (
+        f"<span style='color:{look.muted}; font-size:8.5pt'>반 평균</span><br>"
+        f"<span style='color:{look.ink}; font-size:14pt; font-weight:700'>{report.average:.1f}</span>"
+        f"<span style='color:{look.muted}'> / {report.maximum}</span>&nbsp; {gap_text}"
+        f"{_bar(average, look.klass, look.track)}"
+    )
+    counts = (
+        f"<span style='color:{look.muted}; font-size:8.5pt'>맞힌 문항</span><br>"
+        f"<span style='color:{look.green}; font-weight:700'>{escape(right)}</span><br>"
+        f"<span style='color:{look.muted}; font-size:8.5pt'>틀린 문항</span> "
+        f"<span style='color:{look.red}; font-weight:700'>{len(report.misses)}개</span>"
+    )
+    parts.append(
+        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:6px'><tr>"
+        + _card(mine, "36%", look)
+        + "<td width='2%'></td>"
+        + _card(klass, "30%", look)
+        + "<td width='2%'></td>"
+        + _card(counts, "30%", look)
+        + "</tr></table>"
+    )
+    # Every question at a glance: mine against the class.
+    if report.marks:
+        parts.append(_heading("문항별 결과", look.brand))
+        parts.append(_strip(report.marks, look))
     # Misses as cards.
     if report.misses:
-        parts.append(_heading("틀린 문항", _RED))
+        parts.append(_heading("틀린 문항", look.red))
         for miss in report.misses:
             item = miss.item
             answer = item.answer or 0
@@ -345,38 +452,47 @@ def report_html(
                 if miss.chosen
                 else "<b>무응답</b>"
             )
-            trap = f" {_chip(miss.trap, _RED, _RED_SOFT)}" if miss.trap else ""
-            unit = f"{_chip(item.unit, _BRAND, _BRAND_SOFT)} " if item.unit else ""
-            # Why it was wrong sits last, in its own tinted box, after both answers.
+            trap = f" {_chip(miss.trap, look.red, look.red_soft, look)}" if miss.trap else ""
+            unit = f"{_chip(item.unit, look.brand, look.brand_soft, look)} " if item.unit else ""
+            rate = (
+                f"&nbsp; <span style='color:{look.muted}; font-size:8pt'>"
+                f"(반 {_percent(miss.class_rate)}가 맞힘)</span>"
+            )
+            # Why it was wrong comes last, after both answers, on its own line.
             reason = (
-                "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:3px'><tr>"
-                f"<td bgcolor='{_RED_SOFT}' style='padding:4px 7px'>"
-                f"<span style='color:{_RED}; font-weight:700'>틀린 이유</span>&nbsp;&nbsp;"
-                f"<span style='color:{_REASON_TEXT}'>{escape(miss.reason)}</span></td></tr></table>"
+                "<br>"
+                + (
+                    f"<span style='color:{look.ink}; font-weight:700'>▶ 틀린 이유</span>"
+                    if look.mono
+                    else _chip("틀린 이유", look.red, look.red_soft, look)
+                )
+                + f"&nbsp; <span style='color:{look.reason}'>{escape(miss.reason)}</span>"
                 if miss.reason
                 else ""
             )
             content = (
-                f"<span style='color:{_INK}; font-weight:700'>{item.number}번</span>&nbsp; {unit}"
-                f"{escape(item.question)}<br>"
-                f"<span style='color:{_MUTED}'>내가 고른 답</span>&nbsp; {chosen}{trap}<br>"
-                f"<span style='color:{_GREEN}; font-weight:700'>정답</span>&nbsp; "
+                f"<span style='color:{look.ink}; font-weight:700'>{item.number}번</span>&nbsp; {unit}"
+                f"<span style='color:{look.ink}'>{escape(item.question)}</span>{rate}<br>"
+                f"<span style='color:{look.muted}'>내가 고른 답</span>&nbsp; "
+                f"<span style='color:{look.ink}'>{chosen}</span>{trap}<br>"
+                f"<span style='color:{look.green}; font-weight:700'>정답</span>&nbsp; "
                 + (
-                    f"<span style='color:{_GREEN}; font-weight:700'>{CIRCLED[answer - 1]}</span> "
+                    f"<span style='color:{look.green}; font-weight:700'>{CIRCLED[answer - 1]}</span> "
                     if numbered
                     else ""
                 )
-                + f"<span style='color:{_GREEN}'>{escape(item.options[answer - 1])}</span>"
+                + f"<span style='color:{look.green}'>{escape(item.options[answer - 1])}</span>"
                 f"{reason}"
             )
-            parts.append(_box(content, _RED, "#FFFFFF"))
+            parts.append(_box(content, look.red, "#FFFFFF", look))
     else:
         parts.append(
             _box(
-                f"<span style='color:{_GREEN_STRONG}; font-size:12pt; font-weight:700'>"
+                f"<span style='color:{look.green_strong}; font-size:12pt; font-weight:700'>"
                 "모든 문항을 맞혔습니다. 훌륭합니다!</span>",
-                _GREEN,
-                _GREEN_SOFT,
+                look.green,
+                look.green_soft,
+                look,
             )
         )
     # Trap pattern.
@@ -384,58 +500,73 @@ def report_html(
         top, count = report.traps[0]
         lead = (
             f"틀린 {len(report.misses)}문항 중 <b>{count}개</b>가 "
-            f"<span style='color:{_ORANGE}; font-weight:700'>{escape(top)}</span>입니다."
+            f"<span style='color:{look.orange}; font-weight:700'>{escape(top)}</span>입니다."
             if count >= 2
-            else "틀린 문항을 함정 유형별로 모았습니다."
+            else f"틀린 {len(report.misses)}문항의 함정이 저마다 다릅니다. 유형마다 정리법을 보세요."
         )
-        chips = " ".join(_chip(f"{trap} ×{n}", _ORANGE, _ORANGE_CHIP) for trap, n in report.traps)
+        # One line per trap: how often it caught the student, then how to fix it.
         advice = "<br>".join(
-            f"<b>{escape(trap)}</b> — {escape(TRAP_ADVICE.get(trap, ''))}"
-            for trap, _ in report.traps
+            f"{_chip(f'{trap} ×{n}', look.orange, look.orange_chip, look)}&nbsp; "
+            f"{escape(TRAP_ADVICE.get(trap, ''))}"
+            for trap, n in report.traps
         )
-        parts.append(_heading("나의 함정 패턴", _ORANGE))
+        parts.append(_heading("나의 함정 패턴", look.orange))
         parts.append(
             _box(
-                f"{lead}<br>{chips}<br><span style='line-height:140%'>{advice}</span>",
-                _ORANGE,
-                _ORANGE_SOFT,
+                f"<span style='color:{look.ink}'>{lead}<br>"
+                f"<span style='line-height:135%'>{advice}</span></span>",
+                look.orange,
+                look.orange_soft,
+                look,
             )
         )
     # Review order.
     if report.review:
         items = "<br>".join(
-            f"<span style='color:{_BRAND}; font-weight:700'>{CIRCLED[index]}</span> {escape(point)}"
+            f"<span style='color:{look.brand}; font-weight:700'>{CIRCLED[index]}</span> "
+            f"<span style='color:{look.ink}'>{escape(point)}</span>"
             for index, point in enumerate(report.review)
         )
-        parts.append(_heading("복습 우선순위"))
-        parts.append(_box(items, _BRAND, _BRAND_SOFT))
-    parts.append(
-        f"<p align='right' style='margin-top:8px; color:{_FOOTER}; font-size:7.5pt'>"
-        "퀴즈 리포터 · 학생별 피드백</p>"
-    )
+        parts.append(_heading("복습 우선순위", look.brand))
+        parts.append(_box(items, look.brand, look.brand_soft, look))
     parts.append("</div>")
     return "".join(parts)
 
 
 def reports_html(
-    reports: tuple[StudentReport, ...], title: str, date: str, *, numbered: bool = True
+    reports: tuple[StudentReport, ...],
+    title: str,
+    date: str,
+    *,
+    numbered: bool = True,
+    mono: bool = False,
 ) -> str:
     pages = "".join(
-        report_html(report, title, date, page_break=index > 0, numbered=numbered)
+        report_html(report, title, date, page_break=index > 0, numbered=numbered, mono=mono)
         for index, report in enumerate(reports)
     )
-    return f"<html><body style='font-size:9pt'>{pages}</body></html>"
+    return page_html(pages)
+
+
+def page_html(body: str) -> str:
+    """The document around one or more student pages."""
+    return f"<html><body style='font-size:{BODY_PT}pt'>{body}</body></html>"
 
 
 __all__ = [
     "CIRCLED",
+    "COLOR",
+    "MONO",
     "OPTION_COUNT",
+    "STRIP_COLUMNS",
     "TRAP_ADVICE",
     "ClassSummary",
+    "Mark",
     "Miss",
     "Student",
     "StudentReport",
     "build_reports",
+    "page_html",
     "report_html",
     "reports_html",
     "summarize",

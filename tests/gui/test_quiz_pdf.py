@@ -29,6 +29,7 @@ def _quiz(tmp_path: Path) -> GradedQuiz:
         bank,
         students,
         excluded_rows(selection),
+        "2026-10-06",
     )
 
 
@@ -43,10 +44,10 @@ def test_every_student_gets_a_pdf_and_the_bundle_is_written(qapp, tmp_path):
     assert Path(summary.bundle).stat().st_size > 0
     singles = sorted(path.name for path in (folder / "개별").iterdir())
     assert singles == [
-        "001_20260001_가나.pdf",
-        "002_20260002_다라.pdf",
-        "003_20260003_마바.pdf",
-        "004_학번확인필요_사아.pdf",
+        "가나_20260001_261006_생리 퀴즈.pdf",
+        "다라_20260002_261006_생리 퀴즈.pdf",
+        "마바_20260003_261006_생리 퀴즈.pdf",
+        "사아_학번확인필요_261006_생리 퀴즈.pdf",
     ]
     assert sorted(path.name for path in folder.iterdir()) == ["개별", "전체(인쇄용).pdf"]
 

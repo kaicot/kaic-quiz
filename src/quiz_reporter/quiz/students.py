@@ -24,6 +24,8 @@ class GradedQuiz:
     students: tuple[Student, ...]
     # 시각, 학번(입력값), 이름, 이유
     excluded: tuple[tuple[str, ...], ...]
+    # The day the quiz was taken, YYYY-MM-DD; blank when no answer has a time.
+    taken_on: str = ""
 
 
 def safe_filename(text: str) -> str:

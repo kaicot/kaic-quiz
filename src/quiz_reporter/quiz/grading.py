@@ -5,12 +5,13 @@ option number each answer text stands for.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from quiz_reporter.errors import Err, ErrorInfo, Ok, Result
 from quiz_reporter.quiz.bank import OPTION_COUNT, QuizBank, QuizItem, normalize
-from quiz_reporter.quiz.responses import FormResponse, FormResponses
+from quiz_reporter.quiz.responses import KST, FormResponse, FormResponses
 
 # Answers more than this far apart belong to different sittings (class vs. later review).
 SITTING_GAP = timedelta(minutes=30)
@@ -25,21 +26,42 @@ class Selection:
     cutoff: datetime | None
 
 
+@dataclass(frozen=True, slots=True)
+class Sitting:
+    """Answers with no gap over ``SITTING_GAP`` between them: one class, or one later review."""
+
+    start: datetime
+    end: datetime
+    answers: int
+
+
+def sittings(responses: FormResponses) -> tuple[Sitting, ...]:
+    times = sorted(row.submitted_at for row in responses.rows if row.submitted_at is not None)
+    groups: list[list[datetime]] = []
+    for moment in times:
+        if groups and moment - groups[-1][-1] <= SITTING_GAP:
+            groups[-1].append(moment)
+        else:
+            groups.append([moment])
+    return tuple(Sitting(group[0], group[-1], len(group)) for group in groups)
+
+
 def suggest_cutoff(responses: FormResponses) -> datetime | None:
     """The end of the busiest sitting, or ``None`` when every answer belongs to one sitting."""
-    times = sorted(row.submitted_at for row in responses.rows if row.submitted_at is not None)
-    if not times:
+    found = sittings(responses)
+    if len(found) <= 1:
         return None
-    sittings: list[list[datetime]] = [[times[0]]]
-    for moment in times[1:]:
-        if moment - sittings[-1][-1] > SITTING_GAP:
-            sittings.append([moment])
-        else:
-            sittings[-1].append(moment)
-    if len(sittings) == 1:
+    return max(found, key=lambda sitting: sitting.answers).end
+
+
+def quiz_day(selection: Selection) -> date | None:
+    """The day the quiz was taken: the day most kept answers were sent (Korea time)."""
+    days = Counter(
+        row.submitted_at.astimezone(KST).date() for row in selection.kept if row.submitted_at
+    )
+    if not days:
         return None
-    busiest = max(sittings, key=len)
-    return busiest[-1]
+    return max(days, key=lambda day: (days[day], -day.toordinal()))
 
 
 def _whole_second(moment: datetime) -> datetime:
@@ -252,11 +274,14 @@ __all__ = [
     "AnswerSheet",
     "SITTING_GAP",
     "Selection",
+    "Sitting",
     "bank_from_sheet",
     "choice_numbers",
+    "quiz_day",
     "select",
     "sheet_from_bank",
     "sheet_from_scores",
+    "sittings",
     "suggest_cutoff",
     "valid_student_id",
 ]

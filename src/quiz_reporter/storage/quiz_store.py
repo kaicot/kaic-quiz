@@ -25,7 +25,7 @@ from quiz_reporter.infrastructure.atomic_io import atomic_write_bytes, atomic_wr
 from quiz_reporter.infrastructure.io_retry import retry_copy2, retry_io
 from quiz_reporter.infrastructure.paths import ManagedPaths, validate_component
 from quiz_reporter.quiz.bank import QuizBank, bank_workbook_bytes, normalize, parse_bank_bytes
-from quiz_reporter.quiz.grading import AnswerSheet
+from quiz_reporter.quiz.grading import AnswerSheet, quiz_day
 from quiz_reporter.quiz.pipeline import Graded, grade
 from quiz_reporter.quiz.responses import KST, FormResponses, read_form_responses
 from quiz_reporter.quiz.result_book import RESULT_FILENAME, result_workbook_bytes
@@ -138,6 +138,7 @@ def graded_quiz(info: QuizInfo, folder: str, graded: Graded) -> GradedQuiz:
         graded.bank,
         graded.students,
         graded.excluded,
+        day.isoformat() if (day := quiz_day(graded.selection)) else "",
     )
 
 
